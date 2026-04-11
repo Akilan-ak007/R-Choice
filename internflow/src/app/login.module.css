@@ -1,0 +1,283 @@
+.loginPage {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient-hero);
+  padding: var(--space-6);
+  position: relative;
+  overflow: hidden;
+}
+
+.loginPage::before {
+  content: '';
+  position: absolute;
+  top: -200px;
+  right: -200px;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(161, 39, 139, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+.loginPage::after {
+  content: '';
+  position: absolute;
+  bottom: -150px;
+  left: -150px;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 188, 212, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.loginContainer {
+  width: 100%;
+  max-width: 520px;
+  animation: slideUp 0.5s ease forwards;
+  position: relative;
+  z-index: 1;
+}
+
+.loginHeader {
+  text-align: center;
+  margin-bottom: var(--space-8);
+}
+
+.loginLogo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.loginLogoIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--border-radius-md);
+  background: var(--gradient-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+.loginLogoText {
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--rathinam-navy);
+}
+.loginLogoText span {
+  color: var(--rathinam-purple);
+}
+
+.loginSubtitle {
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+}
+
+/* Login Card */
+.loginCard {
+  background: var(--bg-card);
+  border-radius: var(--border-radius-xl);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-8);
+  position: relative;
+}
+
+/* Step indicator */
+.loginStepIndicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+.stepDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-color);
+  transition: all var(--transition-normal);
+}
+.active {
+  width: 24px;
+  border-radius: 4px;
+  background: var(--color-primary);
+}
+
+/* Role Selection */
+.roleSectionTitle {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--space-3);
+}
+
+.roleGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.roleCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  background: var(--bg-secondary);
+  min-height: 56px;
+}
+.roleCard:hover {
+  border-color: var(--color-primary);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.selected {
+  border-color: var(--color-primary) !important;
+  background: rgba(161, 39, 139, 0.06) !important;
+  box-shadow: 0 0 0 3px rgba(161, 39, 139, 0.1);
+}
+
+.roleIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+.student { background: rgba(0, 188, 212, 0.12); }
+.staff { background: rgba(161, 39, 139, 0.12); }
+.admin { background: rgba(250, 185, 21, 0.12); }
+.external { background: rgba(0, 166, 81, 0.12); }
+
+.roleInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.roleName {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.roleDesc {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+/* Form */
+.loginForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.inputWithIcon {
+  position: relative;
+}
+.inputIcon {
+  position: absolute;
+  left: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  display: flex;
+}
+.inputWithIcon :global(.input-field) {
+  padding-left: 44px;
+}
+
+.loginSubmit {
+  width: 100%;
+  min-height: 48px;
+  font-size: 0.9375rem;
+  margin-top: var(--space-2);
+}
+
+.loginFooter {
+  text-align: center;
+  margin-top: var(--space-5);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.loginFooter a {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Company register link */
+.companyRegisterLink {
+  display: block;
+  text-align: center;
+  margin-top: var(--space-6);
+  padding: var(--space-4);
+  border: 2px dashed var(--border-color);
+  border-radius: var(--border-radius-lg);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  transition: all var(--transition-normal);
+}
+.companyRegisterLink:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--bg-hover);
+}
+.companyRegisterLink strong {
+  color: var(--color-primary);
+}
+
+/* ── Mobile Responsive ── */
+@media (max-width: 640px) {
+  .loginPage {
+    padding: var(--space-4);
+    align-items: flex-start;
+    padding-top: var(--space-10);
+  }
+
+  .loginCard {
+    padding: var(--space-5);
+    border-radius: var(--border-radius-lg);
+  }
+
+  .roleGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .loginLogoIcon {
+    width: 40px;
+    height: 40px;
+  }
+  .loginLogoText {
+    font-size: 1.5rem;
+  }
+
+  .loginSubmit {
+    min-height: 52px;
+    font-size: 1rem;
+  }
+
+  .roleCard {
+    min-height: 52px;
+  }
+}

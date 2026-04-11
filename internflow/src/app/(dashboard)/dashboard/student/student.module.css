@@ -1,0 +1,49 @@
+.completionBanner {
+  background: var(--gradient-hero);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-5) var(--space-6);
+  margin-bottom: var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+.completionInfo {
+  flex: 1;
+}
+.completionInfo h3 {
+  margin-bottom: var(--space-1);
+}
+.completionInfo p {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.completionBar {
+  width: 200px;
+  height: 8px;
+  background: var(--border-color);
+  border-radius: var(--border-radius-full);
+  overflow: hidden;
+}
+.completionProgress {
+  height: 100%;
+  background: var(--gradient-primary);
+  border-radius: var(--border-radius-full);
+  transition: width var(--transition-slow);
+}
+.completionPercent {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+@media (max-width: 640px) {
+  .completionBanner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+  .completionBar { width: 100%; }
+}

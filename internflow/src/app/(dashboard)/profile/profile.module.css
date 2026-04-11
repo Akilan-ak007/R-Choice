@@ -1,0 +1,180 @@
+.profileContainer {
+  display: flex;
+  gap: var(--space-6);
+  align-items: flex-start;
+}
+
+.profileSidebar {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-6));
+}
+
+.profileContent {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Completion Widget */
+.completionWidget {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.progressCircle {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-bottom: var(--space-4);
+}
+
+.circularChart {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  max-height: 250px;
+}
+
+.circleBg {
+  fill: none;
+  stroke: var(--bg-hover);
+  stroke-width: 2.5;
+}
+
+.circle {
+  fill: none;
+  stroke: var(--rathinam-teal);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 1s ease-out;
+}
+
+.percentage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.completionText {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--space-2);
+}
+
+.badgeSuccess {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--border-radius-full);
+}
+.badgeWarning {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--border-radius-full);
+}
+
+/* Tabs */
+.tabNav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-2);
+}
+
+.tabBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.tabBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.activeTab {
+  background: rgba(13, 148, 136, 0.1);
+  color: var(--rathinam-teal);
+  font-weight: 600;
+}
+
+/* Form */
+.formHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+}
+.formHeader h2 {
+  font-size: 1.25rem;
+}
+
+@media (max-width: 1024px) {
+  .profileContainer {
+    flex-direction: column;
+  }
+  .profileSidebar {
+    width: 100%;
+    flex-direction: row;
+    position: static;
+  }
+  .completionWidget {
+    flex: 1;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: var(--space-4);
+  }
+  .progressCircle {
+    width: 64px;
+    height: 64px;
+    margin: 0;
+  }
+  .percentage {
+    font-size: 1.25rem;
+  }
+  .tabNav {
+    flex: 2;
+    flex-direction: row;
+    overflow-x: auto;
+    align-items: center;
+  }
+}
