@@ -65,7 +65,7 @@ export default async function ManageJobsPage() {
                   <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textTransform: "uppercase" }}>Total Applicants</div>
                 </div>
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--rathinam-teal)" }}>0</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--rathinam-blue)" }}>0</div>
                   <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textTransform: "uppercase" }}>Shortlisted</div>
                 </div>
               </div>

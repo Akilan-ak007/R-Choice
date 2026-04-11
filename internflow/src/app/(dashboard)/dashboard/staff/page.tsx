@@ -8,8 +8,8 @@ export default function StaffDashboard() {
 
       <div className="grid grid-3" style={{ marginBottom: "var(--space-6)" }}>
         {[
-          { label: "Pending Approvals", value: "5", color: "var(--rathinam-gold)" },
-          { label: "Total Students", value: "120", color: "var(--rathinam-teal)" },
+          { label: "Pending Approvals", value: "5", color: "var(--rathinam-orange)" },
+          { label: "Total Students", value: "120", color: "var(--rathinam-blue)" },
           { label: "Active Internships", value: "34", color: "var(--rathinam-green)" },
         ].map((kpi) => (
           <div className="card" key={kpi.label}>

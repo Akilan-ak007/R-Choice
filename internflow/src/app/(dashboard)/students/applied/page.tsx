@@ -68,7 +68,7 @@ export default async function StudentsAppliedPage() {
                         'badge-warning'
                       }`}>
                         <CheckCircle size={14} style={{ marginRight: "4px" }} />
-                        {app.status.replace(/_/g, ' ').toUpperCase()}
+                        {(app.status || 'pending').replace(/_/g, ' ').toUpperCase()}
                       </span>
                     </td>
                     <td style={{ padding: "var(--space-4)" }}>

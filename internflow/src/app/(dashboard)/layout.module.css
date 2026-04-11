@@ -4,11 +4,10 @@
   background: var(--bg-primary);
 }
 
-/* ── Sidebar (Desktop) ── */
+/* ── Sidebar (Desktop) — Light White Theme ── */
 .sidebar {
   width: var(--sidebar-width);
-  background: var(--bg-sidebar);
-  color: var(--text-inverse);
+  background: var(--gradient-sidebar);
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -19,11 +18,12 @@
   transition: width var(--transition-normal);
   overflow-y: auto;
   overflow-x: hidden;
+  border-right: 1px solid var(--border-color);
 }
 
 .sidebarHeader {
   padding: var(--space-5) var(--space-5);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -42,14 +42,16 @@
   font-weight: 800;
   font-size: 1rem;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(30, 155, 215, 0.20);
 }
 .sidebarBrand {
   font-family: var(--font-heading);
   font-size: 1.125rem;
   font-weight: 700;
+  color: var(--rathinam-blue);
 }
 .sidebarBrand span {
-  color: var(--rathinam-teal);
+  color: var(--rathinam-purple);
 }
 
 .sidebarNav {
@@ -68,7 +70,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
   padding: 0 var(--space-3);
   margin-bottom: var(--space-2);
 }
@@ -79,7 +81,7 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--space-3);
   border-radius: var(--border-radius-md);
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   font-weight: 500;
   transition: all var(--transition-fast);
@@ -87,14 +89,15 @@
   text-decoration: none;
   width: 100%;
   text-align: left;
+  position: relative;
 }
 .navItem:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.9);
+  background: var(--bg-hover);
+  color: var(--color-primary);
 }
 .navItemActive {
   background: var(--bg-sidebar-active);
-  color: white;
+  color: var(--color-primary);
   font-weight: 600;
 }
 .navItemActive::before {
@@ -105,20 +108,21 @@
   transform: translateY(-50%);
   width: 3px;
   height: 60%;
-  background: var(--rathinam-purple);
+  background: var(--color-primary);
   border-radius: 0 4px 4px 0;
 }
 .navItem svg {
   flex-shrink: 0;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 .navItemActive svg {
   opacity: 1;
+  color: var(--color-primary);
 }
 
 .navBadge {
   margin-left: auto;
-  background: var(--rathinam-red);
+  background: var(--gradient-accent);
   color: white;
   font-size: 0.6875rem;
   font-weight: 700;
@@ -131,7 +135,7 @@
 /* Sidebar footer (user info) */
 .sidebarFooter {
   padding: var(--space-4) var(--space-4);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -144,6 +148,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  color: white;
   font-weight: 700;
   font-size: 0.875rem;
   flex-shrink: 0;
@@ -155,13 +160,14 @@
 .userName {
   font-size: 0.8125rem;
   font-weight: 600;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .userRole {
   font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   text-transform: capitalize;
 }
 
@@ -196,6 +202,7 @@
   font-family: var(--font-heading);
   font-size: 1.125rem;
   font-weight: 600;
+  color: var(--text-primary);
 }
 .topBarRight {
   display: flex;
@@ -223,7 +230,7 @@
   right: 8px;
   width: 8px;
   height: 8px;
-  background: var(--rathinam-red);
+  background: var(--color-accent);
   border-radius: 50%;
   border: 2px solid var(--bg-card);
 }
@@ -247,6 +254,7 @@
   border-top: 1px solid var(--border-color);
   z-index: 50;
   padding: 0 var(--space-2);
+  box-shadow: 0 -2px 12px rgba(26, 35, 50, 0.06);
 }
 .mobileNavInner {
   display: flex;
@@ -305,15 +313,16 @@
   font-family: var(--font-heading);
   font-weight: 800;
   font-size: 0.875rem;
+  box-shadow: 0 2px 6px rgba(30, 155, 215, 0.20);
 }
 .mobileHeaderBrand {
   font-family: var(--font-heading);
   font-weight: 700;
   font-size: 1rem;
-  color: var(--text-primary);
+  color: var(--rathinam-blue);
 }
 .mobileHeaderBrand span {
-  color: var(--color-primary);
+  color: var(--rathinam-purple);
 }
 
 /* ── Responsive ── */

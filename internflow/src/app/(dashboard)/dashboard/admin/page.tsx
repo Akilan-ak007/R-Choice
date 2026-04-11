@@ -8,8 +8,8 @@ export default function AdminDashboard() {
 
       <div className="grid grid-4" style={{ marginBottom: "var(--space-6)" }}>
         {[
-          { label: "Pending Approvals", value: "8", color: "var(--rathinam-gold)" },
-          { label: "Active Students", value: "2,450", color: "var(--rathinam-teal)" },
+          { label: "Pending Approvals", value: "8", color: "var(--rathinam-orange)" },
+          { label: "Active Students", value: "2,450", color: "var(--rathinam-blue)" },
           { label: "Companies", value: "24", color: "var(--rathinam-purple)" },
           { label: "Placement Rate", value: "78%", color: "var(--rathinam-green)" },
         ].map((kpi) => (

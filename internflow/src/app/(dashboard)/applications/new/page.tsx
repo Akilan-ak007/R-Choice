@@ -112,7 +112,7 @@ export default function NewApplicationPage() {
               <select name="discoverySource" className="input-field" required>
                 <option value="LinkedIn">LinkedIn</option>
                 <option value="Internshala">Internshala / Job Board</option>
-                <option value="Referral">Alumni Referral</option>
+                <option value="Self-Applied">Self Applied</option>
                 <option value="Direct">Direct Application / Walk-in</option>
                 <option value="Other">Other</option>
               </select>

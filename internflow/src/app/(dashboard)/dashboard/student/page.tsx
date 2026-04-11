@@ -25,8 +25,8 @@ export default function StudentDashboard() {
         {[
           { label: "Applications", value: "0", color: "var(--rathinam-purple)" },
           { label: "Approved", value: "0", color: "var(--rathinam-green)" },
-          { label: "Pending", value: "0", color: "var(--rathinam-gold)" },
-          { label: "Readiness Score", value: "35", color: "var(--rathinam-teal)" },
+          { label: "Pending", value: "0", color: "var(--rathinam-orange)" },
+          { label: "Readiness Score", value: "35", color: "var(--rathinam-blue)" },
         ].map((kpi) => (
           <div className="card" key={kpi.label}>
             <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: "var(--space-2)" }}>
