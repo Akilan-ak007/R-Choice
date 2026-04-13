@@ -202,7 +202,7 @@ export async function GET(req: Request) {
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${user.firstName}_${user.lastName}_Resume.pdf"`,
+        'Content-Disposition': `attachment; filename="${user.firstName}_${user.lastName}_Resume.pdf"`,
       },
     });
 
