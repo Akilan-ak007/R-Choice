@@ -1,0 +1,104 @@
+/* ============================================
+   Skeleton Shimmer Loaders
+   Structural loading placeholders with animated shine
+   ============================================ */
+
+.skeleton {
+  background: var(--skeleton-base);
+  border-radius: var(--border-radius-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--skeleton-shine) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Preset sizes */
+.skeletonText {
+  composes: skeleton;
+  height: 14px;
+  width: 80%;
+  border-radius: 6px;
+}
+
+.skeletonTextShort {
+  composes: skeleton;
+  height: 14px;
+  width: 50%;
+  border-radius: 6px;
+}
+
+.skeletonHeading {
+  composes: skeleton;
+  height: 22px;
+  width: 40%;
+  border-radius: 8px;
+}
+
+.skeletonCard {
+  composes: skeleton;
+  height: 160px;
+  width: 100%;
+  border-radius: var(--border-radius-md);
+}
+
+.skeletonCircle {
+  composes: skeleton;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+}
+
+/* Dashboard-style loading grid */
+.skeletonDashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-2);
+}
+
+.skeletonKpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.skeletonKpiCard {
+  composes: skeleton;
+  height: 110px;
+  border-radius: var(--border-radius-md);
+}
+
+.skeletonTable {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.skeletonTableRow {
+  composes: skeleton;
+  height: 48px;
+  border-radius: var(--border-radius-sm);
+}

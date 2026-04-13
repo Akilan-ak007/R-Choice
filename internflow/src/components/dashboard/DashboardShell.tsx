@@ -1,7 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import Link from "next/link";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import NotificationsDropdown from "./NotificationsDropdown";
 import {
   LayoutDashboard,
   User,
@@ -54,12 +57,6 @@ function getNavSections(role: string): NavSection[] {
             { label: "Browse Jobs", href: "/jobs", icon: <Briefcase size={20} /> },
             { label: "My Applications", href: "/applications", icon: <FileText size={20} /> },
             { label: "Work Reports", href: "/reports", icon: <ClipboardCheck size={20} /> },
-          ],
-        },
-        {
-          label: "Events",
-          items: [
-            { label: "Placement Drives", href: "/drives", icon: <CalendarDays size={20} /> },
           ],
         },
       ];
@@ -140,12 +137,6 @@ function getNavSections(role: string): NavSection[] {
             { label: "Update Profile", href: "/settings", icon: <Settings size={20} /> },
           ]
         },
-        {
-          label: "Opportunities",
-          items: [
-            { label: "Placement Drives", href: "/drives", icon: <CalendarDays size={20} /> },
-          ],
-        },
       ];
 
     case "dean":
@@ -155,7 +146,8 @@ function getNavSections(role: string): NavSection[] {
           label: "Main",
           items: [
             { label: "Dashboard", href: "/dashboard/admin", icon: <LayoutDashboard size={20} /> },
-            { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} />, badge: 8 },
+            { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} /> },
+            { label: "Job Approvals", href: "/approvals/jobs", icon: <ClipboardCheck size={20} /> },
             { label: "Analytics", href: "/analytics", icon: <BarChart3 size={20} /> },
           ],
         },
@@ -171,7 +163,6 @@ function getNavSections(role: string): NavSection[] {
           label: "Opportunities",
           items: [
             { label: "Job Postings", href: "/jobs", icon: <Briefcase size={20} /> },
-            { label: "Placement Drives", href: "/drives", icon: <CalendarDays size={20} /> },
           ],
         },
       ];
@@ -298,11 +289,15 @@ export function DashboardShell({
             <p className={styles.userName}>{userName}</p>
             <p className={styles.userRole}>{roleLabel}</p>
           </div>
-          <form action="/api/auth/signout" method="POST">
-            <button type="submit" className={styles.navItem} style={{ padding: "8px" }}>
+          <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className={styles.navItem}
+              style={{ padding: "8px", cursor: "pointer", border: "none", background: "none" }}
+              aria-label="Sign out"
+            >
               <LogOut size={18} />
             </button>
-          </form>
         </div>
       </aside>
 
@@ -319,10 +314,7 @@ export function DashboardShell({
             </h1>
           </div>
           <div className={styles.topBarRight}>
-            <button className={styles.notifButton} type="button" aria-label="Notifications">
-              <Bell size={20} />
-              <span className={styles.notifDot} />
-            </button>
+            <NotificationsDropdown />
             <Link href="/profile" style={{ textDecoration: "none" }}>
               <div className={styles.userAvatar} style={{ width: 32, height: 32, fontSize: "0.75rem", cursor: "pointer" }}>
                 {initials}
@@ -340,15 +332,15 @@ export function DashboardShell({
             </span>
           </div>
           <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
-            <button className={styles.notifButton} type="button" aria-label="Notifications">
-              <Bell size={20} />
-              <span className={styles.notifDot} />
-            </button>
+            <NotificationsDropdown />
           </div>
         </header>
 
         {/* Page Content */}
-        <div className={styles.pageContent}>{children}</div>
+        <div className={styles.pageContent}>
+          <Breadcrumbs />
+          {children}
+        </div>
       </main>
 
       {/* ── Mobile Bottom Nav ── */}

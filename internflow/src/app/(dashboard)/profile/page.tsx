@@ -13,8 +13,8 @@ export default async function ProfilePage() {
     redirect("/");
   }
 
-  const role = (session.user as any).role;
-  const userId = session.user.id as string;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   if (role === "principal") {
     const [u] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -97,6 +97,28 @@ export default async function ProfilePage() {
     );
   }
 
-  // Redirect any other roles for now
-  redirect("/");
+  // Generic Profile fallback for all other roles (Tutor, Coordinator, HOD, PO, Company, etc)
+  const [genericUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return (
+    <div className="animate-fade-in">
+      <div className="page-header">
+        <h1 style={{ textTransform: "capitalize" }}>{genericUser.role.replace(/_/g, " ")} Profile</h1>
+        <p>Personal profile overview.</p>
+      </div>
+      <div className="card" style={{ maxWidth: "600px", display: "flex", flexDirection: "column", gap: "var(--space-3)", padding: "var(--space-6)", fontSize: "1.05rem" }}>
+        <div><strong style={{ display: "inline-block", width: "120px" }}>Name:</strong> {genericUser.firstName} {genericUser.lastName}</div>
+        <div><strong style={{ display: "inline-block", width: "120px" }}>Email:</strong> {genericUser.email}</div>
+        <div><strong style={{ display: "inline-block", width: "120px" }}>Phone:</strong> {genericUser.phone || <em style={{ color: "var(--text-secondary)" }}>Not set</em>}</div>
+        <div><strong style={{ display: "inline-block", width: "120px" }}>Role:</strong> <span style={{ textTransform: "capitalize" }}>{genericUser.role.replace(/_/g, " ")}</span></div>
+        <div style={{ marginTop: "var(--space-3)", paddingTop: "var(--space-3)", borderTop: "1px solid var(--border-color)" }}>
+          <strong style={{ display: "block", marginBottom: "8px" }}>About:</strong>
+          {genericUser.about ? (
+            <div style={{ color: "var(--text-secondary)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{genericUser.about}</div>
+          ) : (
+            <div style={{ color: "var(--text-secondary)", fontStyle: "italic" }}>No about information provided. You can update this via Settings.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

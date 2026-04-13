@@ -12,7 +12,7 @@ export default async function JobBoardPage() {
     redirect("/");
   }
 
-  const role = (session.user as any).role;
+  const role = session.user.role;
   const isStudent = role === "student";
 
   const jobs = await fetchActiveJobs();

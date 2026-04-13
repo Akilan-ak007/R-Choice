@@ -1,16 +1,11 @@
-<<<<<<< HEAD
+"use client";
+
 import Link from "next/link";
+import { AdminKpiCards } from "./AdminKpiCards";
+import { AuditLogTypewriter } from "@/components/dashboard/admin/AuditLogTypewriter";
+import { ExportDataButton } from "@/components/dashboard/admin/ExportDataButton";
 
 export default function AdminDashboard() {
-=======
-import { auth } from "@/lib/auth";
-import Link from "next/link";
-
-export default async function AdminDashboard() {
-  const session = await auth();
-  const userRole = (session?.user as any)?.role;
-
->>>>>>> keerthika/main
   return (
     <div>
       <div className="page-header">
@@ -18,39 +13,17 @@ export default async function AdminDashboard() {
         <p>Full platform overview — approvals, analytics, and management.</p>
       </div>
 
-      <div className="grid grid-4" style={{ marginBottom: "var(--space-6)" }}>
-        {[
-          { label: "Pending Approvals", value: "8", color: "var(--color-warning)", href: "/approvals" },
-          { label: "Active Students", value: "2,450", color: "var(--color-info)", href: "/students" },
-          { label: "Companies", value: "24", color: "var(--color-primary)", href: "/companies" },
-          { label: "Placement Rate", value: "78%", color: "var(--rathinam-green)" },
-        ].map((kpi) => {
-          const content = (
-            <div className="card" style={{ height: "100%", cursor: kpi.href ? "pointer" : "default" }}>
-              <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: "var(--space-2)" }}>
-                {kpi.label}
-              </p>
-              <p style={{ fontFamily: "var(--font-heading)", fontSize: "2rem", fontWeight: 700, color: kpi.color }}>
-                {kpi.value}
-              </p>
-            </div>
-          );
-          return kpi.href ? (
-             <Link href={kpi.href} key={kpi.label} style={{ textDecoration: "none", color: "inherit" }}>
-               {content}
-             </Link>
-          ) : (
-             <div key={kpi.label}>{content}</div>
-          );
-        })}
-      </div>
+      <AdminKpiCards />
 
       <div className="grid grid-2">
         <div>
           <h2 style={{ marginBottom: "var(--space-4)" }}>Quick Actions</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             <Link href="/users/create" style={{ textDecoration: "none", color: "inherit" }}>
-              <div className="card" style={{ cursor: "pointer" }}>
+              <div className="card" style={{ cursor: "pointer", transition: "transform var(--transition-fast), box-shadow var(--transition-fast)" }}
+                onMouseEnter={(e: any) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "var(--shadow-card-hover)"; }}
+                onMouseLeave={(e: any) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = ""; }}
+              >
                 <p style={{ fontWeight: 600 }}>Create User Account</p>
                 <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
                   Add students, staff, or admin accounts
@@ -58,29 +31,23 @@ export default async function AdminDashboard() {
               </div>
             </Link>
             <Link href="/approvals" style={{ textDecoration: "none", color: "inherit" }}>
-              <div className="card" style={{ cursor: "pointer" }}>
+              <div className="card" style={{ cursor: "pointer", transition: "transform var(--transition-fast), box-shadow var(--transition-fast)" }}
+                onMouseEnter={(e: any) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "var(--shadow-card-hover)"; }}
+                onMouseLeave={(e: any) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = ""; }}
+              >
                 <p style={{ fontWeight: 600 }}>Review Companies</p>
                 <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
                   Approve pending company registrations
                 </p>
               </div>
             </Link>
-            <div className="card" style={{ cursor: "not-allowed", opacity: 0.7 }}>
-              <p style={{ fontWeight: 600 }}>Export Data</p>
-              <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
-                Download reports as Excel sheets
-              </p>
-            </div>
+            <ExportDataButton />
           </div>
         </div>
 
         <div>
           <h2 style={{ marginBottom: "var(--space-4)" }}>Recent Activity</h2>
-          <div className="card">
-            <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "var(--space-8)" }}>
-              Activity feed will appear here once the system is live.
-            </p>
-          </div>
+          <AuditLogTypewriter />
         </div>
       </div>
     </div>

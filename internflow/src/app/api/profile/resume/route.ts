@@ -39,10 +39,22 @@ export async function GET(req: Request) {
     const { width, height } = page.getSize();
     let cursorY = height - 50;
     const marginX = 50;
+
+    const sanitizeText = (text: any): string => {
+      if (text === null || text === undefined) return '';
+      return String(text)
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2013\u2014]/g, "-")
+        .replace(/[^\x20-\x7E\r\n\t]/g, "")
+        .trim();
+    };
     
     const drawText = (text: string, size: number, isBold = false, x = marginX) => {
+      const sanitizedText = sanitizeText(text);
+      if (!sanitizedText) return;
       const currentFont = isBold ? boldFont : font;
-      page.drawText(text, {
+      page.drawText(sanitizedText, {
         x,
         y: cursorY,
         size,
@@ -89,11 +101,11 @@ export async function GET(req: Request) {
       addSectionHeader("Professional Summary");
       
       // Simple text wrapping logic
-      const words = profile.professionalSummary.split(' ');
+      const words = sanitizeText(profile.professionalSummary).split(' ');
       let line = '';
       for (const word of words) {
         const testLine = line + word + ' ';
-        const textWidth = font.widthOfTextAtSize(testLine, 10);
+        const textWidth = font.widthOfTextAtSize(sanitizeText(testLine), 10);
         if (textWidth > width - 100) {
           drawText(line, 10, false);
           line = word + ' ';
@@ -131,11 +143,11 @@ export async function GET(req: Request) {
       const skillList = skills.map(s => s.skillName).join(', ');
       
       // Wrapping for skills
-      const words = skillList.split(', ');
+      const words = sanitizeText(skillList).split(', ');
       let line = '';
       for (const word of words) {
         const testLine = line + (line ? ', ' : '') + word;
-        const textWidth = font.widthOfTextAtSize(testLine, 10);
+        const textWidth = font.widthOfTextAtSize(sanitizeText(testLine), 10);
         if (textWidth > width - 100) {
           drawText(line + ',', 10, false);
           line = word;
@@ -163,11 +175,11 @@ export async function GET(req: Request) {
         // Wrapping logic for project description
         if (proj.description) {
           cursorY -= 2;
-          const words = proj.description.split(' ');
+          const words = sanitizeText(proj.description).split(' ');
           let line = '';
           for (const word of words) {
             const testLine = line + word + ' ';
-            const textWidth = font.widthOfTextAtSize(testLine, 10);
+            const textWidth = font.widthOfTextAtSize(sanitizeText(testLine), 10);
             if (textWidth > width - 100) {
               drawText(line, 10, false);
               line = word + ' ';

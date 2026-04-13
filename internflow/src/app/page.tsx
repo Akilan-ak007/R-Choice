@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { loginAction } from "@/app/actions/auth";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import {
   GraduationCap,
   BookOpen,
@@ -76,6 +77,27 @@ export default function LoginPage() {
     setSelectedRole(roleId);
   };
 
+  const router = useRouter();
+
+  function getRedirectUrl(role: string): string {
+    switch (role) {
+      case "student":
+        return "/dashboard/student";
+      case "tutor":
+      case "placement_coordinator":
+      case "hod":
+        return "/dashboard/staff";
+      case "dean":
+      case "placement_officer":
+      case "principal":
+        return "/dashboard/admin";
+      case "company":
+        return "/dashboard/company";
+      default:
+        return "/";
+    }
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !selectedRole) {
@@ -84,18 +106,23 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     setError("");
+
     try {
-      const formData = new FormData();
-      formData.append("email", email);
-      formData.append("password", password);
-      formData.append("role", selectedRole);
-      const result = await loginAction(formData);
+      const result = await signIn("credentials", {
+        redirect: false,
+        email,
+        password,
+        role: selectedRole,
+      });
+
       if (result?.error) {
-        setError(result.error);
+        setError("Invalid email or password for this role.");
         setIsLoading(false);
+      } else if (result?.ok) {
+        router.push(getRedirectUrl(selectedRole));
       }
-    } catch {
-      setError("Invalid credentials. Please try again.");
+    } catch (e: any) {
+      setError("An unexpected error occurred. Please try again.");
       setIsLoading(false);
     }
   };
@@ -227,13 +254,14 @@ export default function LoginPage() {
                 const diff = i - selectedIndex;
                 const absDiff = Math.abs(diff);
 
-                if (absDiff > 2) return null; // Only show up to 2 items on each side
+                // Let all roles render so E2E scripts can find them even if they are in the back
+                const isHidden = absDiff > 2;
 
                 const translateX = diff * 115;
                 const translateZ = absDiff * -120;
                 const rotateY = diff * -15;
-                const scale = 1 - absDiff * 0.15;
-                const opacity = isStaffRole ? (1 - absDiff * 0.5) : (0.5 - absDiff * 0.2);
+                const scale = Math.max(0, 1 - absDiff * 0.15);
+                const opacity = isHidden ? 0 : (isStaffRole ? (1 - absDiff * 0.5) : (0.5 - absDiff * 0.2));
                 const zIndex = 10 - absDiff;
 
                 return (

@@ -21,8 +21,9 @@ export async function getFilteredRequestsForStaff(userId: string, role: string, 
   if (filterStatus === "pending") {
     const baseConditions = [eq(internshipRequests.status, targetStatus as any)];
     if (role === "dean" || role === "placement_officer" || role === "principal") {
-      if (role === "principal") baseConditions.push(eq(internshipRequests.currentTier, 5));
-      else baseConditions.push(lte(internshipRequests.currentTier, 4));
+      if (role === "dean") baseConditions.push(eq(internshipRequests.currentTier, 4));
+      else if (role === "placement_officer") baseConditions.push(eq(internshipRequests.currentTier, 5));
+      else if (role === "principal") baseConditions.push(eq(internshipRequests.currentTier, 6));
     }
     condition = and(...baseConditions);
   } else if (filterStatus === "approved") {

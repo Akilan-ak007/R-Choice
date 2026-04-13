@@ -4,7 +4,7 @@ import { internshipRequests } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { PlusCircle, ExternalLink, Calendar, MapPin, Building2 } from "lucide-react";
+import { PlusCircle, ExternalLink, Calendar, MapPin, Building2, FolderOpen } from "lucide-react";
 
 export default async function ApplicationsPage() {
   const session = await auth();
@@ -45,7 +45,9 @@ export default async function ApplicationsPage() {
 
       {applications.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: "var(--space-8)" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "var(--space-4)" }}>📂</div>
+          <div style={{ marginBottom: "var(--space-4)", display: "flex", justifyContent: "center", color: "var(--color-primary)" }}>
+            <FolderOpen size={48} />
+          </div>
           <h2 style={{ marginBottom: "var(--space-2)" }}>No Applications Found</h2>
           <p style={{ color: "var(--text-secondary)", maxWidth: "500px", margin: "0 auto" }}>
             You haven't requested any internship approvals yet. When you secure an external opportunity or apply through the portal, it will show up here.
@@ -77,17 +79,19 @@ export default async function ApplicationsPage() {
               )}
 
               {/* Progress Tracker */}
-              <div className={`tracker-container status-${app.status || 'draft'}`}>
-                <div className="progress-bg-line"></div>
-                <div className="progress-fill-line"></div>
-                
-                <div className="progress-step node-1"><div className="step-dot"></div><span className="step-label">Applied</span></div>
-                <div className="progress-step node-2"><div className="step-dot"></div><span className="step-label">Tutor</span></div>
-                <div className="progress-step node-3"><div className="step-dot"></div><span className="step-label">Coordinator</span></div>
-                <div className="progress-step node-4"><div className="step-dot"></div><span className="step-label">HOD</span></div>
-                <div className="progress-step node-5"><div className="step-dot"></div><span className="step-label">Dean</span></div>
-                <div className="progress-step node-6"><div className="step-dot"></div><span className="step-label">Pl. Head</span></div>
-                <div className="progress-step node-7"><div className="step-dot"></div><span className="step-label">Principal</span></div>
+              <div className="tracker-scroll-wrapper">
+                <div className={`tracker-container status-${app.status || 'draft'}`}>
+                  <div className="progress-bg-line"></div>
+                  <div className="progress-fill-line"></div>
+                  
+                  <div className="progress-step node-1"><div className="step-dot"></div><span className="step-label">Applied</span></div>
+                  <div className="progress-step node-2"><div className="step-dot"></div><span className="step-label">Tutor</span></div>
+                  <div className="progress-step node-3"><div className="step-dot"></div><span className="step-label">Coordinator</span></div>
+                  <div className="progress-step node-4"><div className="step-dot"></div><span className="step-label">HOD</span></div>
+                  <div className="progress-step node-5"><div className="step-dot"></div><span className="step-label">Dean</span></div>
+                  <div className="progress-step node-6"><div className="step-dot"></div><span className="step-label">Pl. Head</span></div>
+                  <div className="progress-step node-7"><div className="step-dot"></div><span className="step-label">Principal</span></div>
+                </div>
               </div>
             </div>
           ))}
@@ -108,7 +112,11 @@ export default async function ApplicationsPage() {
         .badge-warning { background: rgba(234, 179, 8, 0.15); color: #eab308; }
         .badge-pending { background: rgba(14, 165, 233, 0.15); color: #0ea5e9; }
         
-        .tracker-container { display: flex; justify-content: space-between; position: relative; margin-top: var(--space-6); padding: var(--space-4) 0 8px 0; border-top: 1px solid var(--border-color); background: transparent; }
+        .tracker-scroll-wrapper { width: 100%; overflow-x: auto; padding-bottom: var(--space-2); -webkit-overflow-scrolling: touch; }
+        .tracker-scroll-wrapper::-webkit-scrollbar { height: 6px; }
+        .tracker-scroll-wrapper::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+        
+        .tracker-container { display: flex; justify-content: space-between; position: relative; margin-top: var(--space-6); padding: var(--space-4) 0 8px 0; border-top: 1px solid var(--border-color); background: transparent; min-width: 600px; }
         .progress-bg-line { position: absolute; top: calc(var(--space-4) + 6px); left: 30px; right: 30px; height: 3px; background: #e5e7eb; z-index: 1; border-radius: 2px; }
         .progress-fill-line { position: absolute; top: calc(var(--space-4) + 6px); left: 30px; height: 3px; z-index: 2; border-radius: 2px; transition: all 0.5s ease; }
         

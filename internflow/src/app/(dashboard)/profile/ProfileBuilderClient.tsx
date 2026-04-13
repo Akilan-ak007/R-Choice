@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import styles from "./profile.module.css";
 import { CheckCircle2, Save, User, Book, Briefcase, Award, Plus, Trash2, Code, Languages, Globe, Zap, Target, Star } from "lucide-react";
 import { saveBasicProfile, saveEducation, saveSkills, saveProjects, saveCertifications } from "@/app/actions/profile";
+import { toast } from "sonner";
 
 export default function ProfileBuilderClient({ initialData }: { initialData: any }) {
   const [data, setData] = useState(initialData);
@@ -86,27 +87,27 @@ export default function ProfileBuilderClient({ initialData }: { initialData: any
           professionalSummary: data.professionalSummary || "",
           roles: roles
         });
-        if (result.error) setMessage({ text: result.error, type: "error" });
-        else { setMessage({ text: "Profile updated successfully!", type: "success" }); setData({ ...data, profileCompletionScore: result.score }); }
+        if (result.error) toast.error(result.error);
+        else { toast.success("Profile updated successfully!"); setData({ ...data, profileCompletionScore: result.score }); }
       } else if (activeTab === "education") {
         const result = await saveEducation(education);
-        if (result.error) setMessage({ text: result.error, type: "error" });
-        else setMessage({ text: "Education updated successfully!", type: "success" });
+        if (result.error) toast.error(result.error);
+        else toast.success("Education updated successfully!");
       } else if (activeTab === "skills" || activeTab === "languages") {
         const result = await saveSkills(skills);
-        if (result.error) setMessage({ text: result.error, type: "error" });
-        else setMessage({ text: "Skills/Languages updated successfully!", type: "success" });
+        if (result.error) toast.error(result.error);
+        else toast.success("Skills updated successfully!");
       } else if (activeTab === "projects") {
         const result = await saveProjects(projects);
-        if (result.error) setMessage({ text: result.error, type: "error" });
-        else setMessage({ text: "Projects updated successfully!", type: "success" });
+        if (result.error) toast.error(result.error);
+        else toast.success("Projects updated successfully!");
       } else if (activeTab === "certs") {
         const result = await saveCertifications(certs);
-        if (result.error) setMessage({ text: result.error, type: "error" });
-        else setMessage({ text: "Certifications updated successfully!", type: "success" });
+        if (result.error) toast.error(result.error);
+        else toast.success("Certifications updated successfully!");
       }
     } catch {
-      setMessage({ text: "An unexpected error occurred.", type: "error" });
+      toast.error("An unexpected error occurred.");
     }
     setIsSaving(false);
   };
@@ -301,10 +302,28 @@ export default function ProfileBuilderClient({ initialData }: { initialData: any
                   </div>
                 )}
                 
+                <datalist id="popularSkills">
+                  <option value="React" />
+                  <option value="Node.js" />
+                  <option value="TypeScript" />
+                  <option value="Python" />
+                  <option value="Java" />
+                  <option value="C++" />
+                  <option value="SQL" />
+                  <option value="MongoDB" />
+                  <option value="Docker" />
+                  <option value="AWS" />
+                  <option value="Figma" />
+                  <option value="Communication" />
+                  <option value="Leadership" />
+                  <option value="Problem Solving" />
+                  <option value="Teamwork" />
+                </datalist>
+
                 <div className="input-group" style={{ marginBottom: "var(--space-4)" }}>
                   <label>Add New Skill Manually</label>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    <input className="input-field" style={{ flex: 2 }} value={newSkill} onChange={(e) => setNewSkill(e.target.value)} placeholder="Type a skill..." onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newSkill) { setSkills([...skills, { name: newSkill, type: skillType, isTop: false }]); setNewSkill(""); } } }} />
+                    <input className="input-field" style={{ flex: 2 }} list="popularSkills" value={newSkill} onChange={(e) => setNewSkill(e.target.value)} placeholder="Type a skill..." onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newSkill) { setSkills([...skills, { name: newSkill, type: skillType, isTop: false }]); setNewSkill(""); } } }} />
                     <select className="input-field" style={{ flex: 1 }} value={skillType} onChange={(e) => setSkillType(e.target.value)}>
                       <option value="hard">Hard / Tech Skill</option>
                       <option value="soft">Soft Skill</option>
@@ -317,7 +336,7 @@ export default function ProfileBuilderClient({ initialData }: { initialData: any
                   {/* Tech Skills Column */}
                   <div>
                     <h3 style={{ marginBottom: "var(--space-2)", fontSize: "1rem", color: "var(--text-secondary)" }}>Hard / Tech Skills</h3>
-                    <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>Click the Star ⭐ to rank your Top 5 skills.</p>
+                    <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>Click the Star <Star size={12} fill="var(--color-warning)" color="var(--color-warning)" style={{ display: "inline-block", verticalAlign: "middle" }} /> to rank your Top 5 skills.</p>
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                       {skills.map((s, i) => s.type === "hard" && (
                         <span key={i} style={{ background: s.isTop ? "var(--bg-hover)" : "var(--bg-secondary)", border: s.isTop ? "1px solid var(--color-primary)" : "1px solid var(--border-color)", padding: "4px 10px", borderRadius: "8px", fontSize: "0.875rem", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -333,7 +352,7 @@ export default function ProfileBuilderClient({ initialData }: { initialData: any
                   {/* Soft Skills Column */}
                   <div>
                     <h3 style={{ marginBottom: "var(--space-2)", fontSize: "1rem", color: "var(--text-secondary)" }}>Soft Skills</h3>
-                    <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>Click the Star ⭐ to rank your Top 5 soft skills.</p>
+                    <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>Click the Star <Star size={12} fill="var(--color-warning)" color="var(--color-warning)" style={{ display: "inline-block", verticalAlign: "middle" }} /> to rank your Top 5 soft skills.</p>
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                       {skills.map((s, i) => s.type === "soft" && (
                         <span key={i} style={{ background: s.isTop ? "var(--bg-hover)" : "var(--bg-secondary)", border: s.isTop ? "1px solid var(--color-primary)" : "1px solid var(--border-color)", padding: "4px 10px", borderRadius: "8px", fontSize: "0.875rem", display: "flex", alignItems: "center", gap: "8px" }}>

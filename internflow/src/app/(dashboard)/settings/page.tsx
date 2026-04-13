@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { User, Bell, Shield, KeyRound, Smartphone } from "lucide-react";
 import { db } from "@/lib/db";
+import ChangePasswordForm from "./ChangePasswordForm";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -8,7 +9,7 @@ import { revalidatePath } from "next/cache";
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
-  const user = session.user as any;
+  const user = session.user;
   const userName = user?.name || "User";
   const userEmail = user?.email || "No email provided";
   const role = user?.role || "student";
@@ -105,16 +106,7 @@ export default async function SettingsPage() {
           </div>
           
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "var(--space-4)", borderBottom: "1px solid var(--border-color)" }}>
-              <div style={{ display: "flex", gap: "var(--space-3)" }}>
-                <KeyRound size={20} color="var(--text-secondary)" style={{ marginTop: "2px" }} />
-                <div>
-                  <div style={{ fontWeight: 500 }}>Change Password</div>
-                  <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>Update your account password.</div>
-                </div>
-              </div>
-              <button className="btn btn-outline">Update</button>
-            </div>
+            <ChangePasswordForm />
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "var(--space-4)", borderBottom: "1px solid var(--border-color)" }}>
               <div style={{ display: "flex", gap: "var(--space-3)" }}>

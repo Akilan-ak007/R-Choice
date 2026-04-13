@@ -7,7 +7,7 @@ import { ShieldAlert } from "lucide-react";
 
 export default async function CreateUserPage() {
   const session = await auth();
-  if ((session?.user as any)?.role !== "principal") {
+  if (session?.user?.role !== "principal") {
     redirect("/");
   }
 
@@ -16,7 +16,7 @@ export default async function CreateUserPage() {
     
     // Auth Validation Over-check
     const session = await auth();
-    if ((session?.user as any)?.role !== "principal") {
+    if (session?.user?.role !== "principal") {
       throw new Error("Unauthorized");
     }
 
@@ -24,10 +24,17 @@ export default async function CreateUserPage() {
     const firstName = formData.get("firstName") as string;
     const lastName = formData.get("lastName") as string;
     const password = formData.get("password") as string;
-    const role = formData.get("role") as any;
+    const role = formData.get("role") as string;
+
+    const validRoles = ["student", "tutor", "placement_coordinator", "hod", "dean", "placement_officer", "principal", "company", "alumni"] as const;
+    type UserRole = typeof validRoles[number];
 
     if (!email || !firstName || !lastName || !password || !role) {
       throw new Error("All parameters are required.");
+    }
+
+    if (!validRoles.includes(role as UserRole)) {
+      throw new Error("Invalid role selected.");
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -38,7 +45,7 @@ export default async function CreateUserPage() {
         passwordHash,
         firstName,
         lastName,
-        role,
+        role: role as UserRole,
         isActive: true,
       });
     } catch(err) {

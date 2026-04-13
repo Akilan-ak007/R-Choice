@@ -11,7 +11,7 @@ export async function submitWorkReport(formData: FormData) {
     return { error: "Not authenticated" };
   }
   const userId = session.user.id;
-  const role = (session.user as any).role;
+  const role = session.user.role;
 
   if (role !== "student") {
     return { error: "Only students can submit work reports." };

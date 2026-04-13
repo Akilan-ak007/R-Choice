@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { jobPostings, users } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { sanitize, sanitizeOptional, validateDate, ValidationError } from "@/lib/validation";
 
 export async function createJobPosting(formData: FormData) {
   const session = await auth();
@@ -12,24 +13,19 @@ export async function createJobPosting(formData: FormData) {
     return { error: "Not authenticated" };
   }
   
-  const role = (session.user as any).role;
+  const role = session.user.role;
   if (role !== "company") {
-    // Only companies (or maybe admins) can post jobs. Let's stick to companies for now.
     return { error: "Only companies can post jobs." };
   }
 
-  const title = formData.get("title") as string;
-  const description = formData.get("description") as string;
-  const requirements = formData.get("requirements") as string;
-  const location = formData.get("location") as string;
-  const stipendInfo = formData.get("stipendInfo") as string;
-  const deadlines = formData.get("deadline") as string;
-
-  if (!title || !description || !location || !deadlines) {
-    return { error: "Please fill out all required fields." };
-  }
-
   try {
+    const title = sanitize(formData.get("title"), "Job Title", 255);
+    const description = sanitize(formData.get("description"), "Job Description", 5000);
+    const requirements = sanitizeOptional(formData.get("requirements"), "Requirements", 3000);
+    const location = sanitize(formData.get("location"), "Location", 200);
+    const stipendInfo = sanitizeOptional(formData.get("stipendInfo"), "Stipend Info", 100);
+    const deadline = validateDate(formData.get("deadline"), "Application Deadline");
+
     // Determine the company name from the user profile
     const [user] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
     
@@ -37,30 +33,64 @@ export async function createJobPosting(formData: FormData) {
       postedBy: session.user.id,
       postedByRole: "company",
       title,
-      jobType: "Internship", // Need to supply required fields
+      jobType: "Internship",
       description,
       location,
       workMode: "Hybrid",
       duration: "3 Months",
       stipendSalary: stipendInfo || "Unpaid",
       openingsCount: 1,
-      applicationDeadline: new Date(deadlines).toISOString().split("T")[0], // Pass date string 
-      status: "approved", // Changed to match jobStatusEnum (draft, pending_review, approved, etc)
+      applicationDeadline: deadline,
+      status: "pending_review", // Jobs now go through staff review before being visible
     });
 
     revalidatePath("/jobs");
     revalidatePath("/jobs/manage");
     
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return { error: error.message };
+    }
     console.error("Job creation error:", error);
     return { error: "Failed to post job." };
   }
 }
 
+export async function updateJobStatus(jobId: string, action: "approve" | "reject") {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "Not authenticated" };
+  }
+  
+  const role = session.user.role;
+  if (role !== "placement_officer") {
+    return { error: "Only placement officers can approve company jobs." };
+  }
+
+  try {
+    const newStatus = action === "approve" ? "approved" : "rejected";
+    
+    await db.update(jobPostings)
+      .set({ 
+        status: newStatus,
+        verifiedBy: session.user.id,
+        verifiedByRole: role,
+        verifiedAt: new Date()
+      })
+      .where(eq(jobPostings.id, jobId));
+
+    revalidatePath("/approvals/jobs");
+    revalidatePath("/jobs");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update job status:", error);
+    return { error: "Database error occurred" };
+  }
+}
+
 export async function fetchActiveJobs() {
   try {
-    // Join with Users to get the company "firstName" (which we use as company name in the seed)
     const jobs = await db
       .select({
         id: jobPostings.id,

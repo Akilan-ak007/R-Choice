@@ -1,16 +1,7 @@
-<<<<<<< HEAD
+import { Sparkles } from "lucide-react";
 import Link from "next/link";
 
 export default function StaffDashboard() {
-=======
-import { auth } from "@/lib/auth";
-import Link from "next/link";
-
-export default async function StaffDashboard() {
-  const session = await auth();
-  const userRole = (session?.user as any)?.role;
-
->>>>>>> keerthika/main
   return (
     <div>
       <div className="page-header">
@@ -47,8 +38,8 @@ export default async function StaffDashboard() {
 
       <h2 style={{ marginBottom: "var(--space-4)" }}>Recent Approval Requests</h2>
       <div className="card">
-        <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "var(--space-8)" }}>
-          No pending requests. All caught up! ✨
+        <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "var(--space-8)", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+          No pending requests. All caught up! <Sparkles size={18} />
         </p>
       </div>
     </div>

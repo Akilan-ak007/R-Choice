@@ -8,12 +8,12 @@ import ReportForm from "./ReportForm";
 
 export default async function ReportsPage() {
   const session = await auth();
-  if (!session?.user || (session.user as any).role !== "student") {
+  if (!session?.user || session.user.role !== "student") {
     redirect("/");
   }
 
   // Fetch approved internships to find active reporting schedules
-  const userId = session.user.id as string;
+  const userId = session.user.id;
   const approvedRequests = await db.query.internshipRequests.findMany({
     where: and(
       eq(internshipRequests.studentId, userId),

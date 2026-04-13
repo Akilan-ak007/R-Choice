@@ -13,10 +13,10 @@ export default async function ApprovalsPage(props: { searchParams: Promise<{ sta
     redirect("/");
   }
 
-  const role = (session.user as any).role;
+  const role = session.user.role;
   // Let's only allow staff/admins
   if (role === "student" || role === "company" || role === "alumni") {
-    redirect("/dashboard/student");
+    redirect("/");
   }
 
   const requests = await getFilteredRequestsForStaff(session.user.id, role, filterStatus);
@@ -40,7 +40,9 @@ export default async function ApprovalsPage(props: { searchParams: Promise<{ sta
 
       {requests.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: "var(--space-8)" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "var(--space-4)" }}>✅</div>
+          <div style={{ marginBottom: "var(--space-4)", display: "flex", justifyContent: "center", color: "var(--color-primary)" }}>
+            <CheckCircle size={48} />
+          </div>
           <h2 style={{ marginBottom: "var(--space-2)" }}>All Caught Up!</h2>
           <p style={{ color: "var(--text-secondary)", maxWidth: "500px", margin: "0 auto" }}>
             There are no student internship requests waiting for your approval right now.

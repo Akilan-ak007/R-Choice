@@ -13,7 +13,7 @@ export default async function DashboardLayout({
     redirect("/");
   }
 
-  const user = session.user as any;
+  const user = session.user;
 
   return (
     <DashboardShell

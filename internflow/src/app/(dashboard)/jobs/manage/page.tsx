@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { fetchCompanyJobs } from "@/app/actions/jobs";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { PlusCircle, Users, Eye, Edit } from "lucide-react";
+import { PlusCircle, Users, Eye, Edit, MapPin, Banknote, Clock } from "lucide-react";
 
 export default async function ManageJobsPage() {
   const session = await auth();
@@ -10,9 +10,9 @@ export default async function ManageJobsPage() {
     redirect("/");
   }
 
-  const role = (session.user as any).role;
+  const role = session.user.role;
   if (role !== "company") {
-    redirect("/dashboard/student");
+    redirect("/");
   }
 
   const jobs = await fetchCompanyJobs(session.user.id);
@@ -46,9 +46,9 @@ export default async function ManageJobsPage() {
                 <div>
                   <h3 style={{ fontSize: "1.25rem", margin: "0 0 8px 0" }}>{job.title}</h3>
                   <div style={{ display: "flex", gap: "16px", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-                    <span>📍 {job.location}</span>
-                    <span>💰 {job.stipendSalary || "Unpaid"}</span>
-                    <span>⏳ Deadline: {new Date(job.applicationDeadline!).toLocaleDateString()}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><MapPin size={14} /> {job.location}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><Banknote size={14} /> {job.stipendSalary || "Unpaid"}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><Clock size={14} /> Deadline: {new Date(job.applicationDeadline!).toLocaleDateString()}</span>
                   </div>
                 </div>
                 <span className="badge" style={{ background: "rgba(34, 197, 94, 0.15)", color: "#22c55e", padding: "4px 8px", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "bold" }}>

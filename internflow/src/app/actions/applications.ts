@@ -5,6 +5,17 @@ import { db } from "@/lib/db";
 import { internshipRequests, externalInternshipDetails } from "@/lib/db/schema";
 import { getApproversForStudent } from "@/lib/db/queries/authority";
 import { revalidatePath } from "next/cache";
+import {
+  sanitize,
+  sanitizeOptional,
+  validateEmail,
+  validateUrl,
+  validateUrlOptional,
+  validatePhone,
+  validateDate,
+  validateEnum,
+  ValidationError,
+} from "@/lib/validation";
 
 export async function submitInternshipRequest(formData: FormData) {
   const session = await auth();
@@ -12,7 +23,7 @@ export async function submitInternshipRequest(formData: FormData) {
     return { error: "Not authenticated" };
   }
   const userId = session.user.id;
-  const role = (session.user as any).role;
+  const role = session.user.role;
 
   if (role !== "student") {
     return { error: "Only students can submit internship applications." };
@@ -20,36 +31,45 @@ export async function submitInternshipRequest(formData: FormData) {
 
   try {
     // 1. Get the authority mapping for the student
-    // This will throw if the student has no profile or no mapping exists
     const approvers = await getApproversForStudent(userId);
 
-    // Ensure they have a tutor assigned (Tier 1)
     if (!approvers.tutorId) {
       return { error: "No class tutor mapped to your department/section. Cannot submit request." };
     }
 
-    // 2. Extract form data
-    const applicationType = (formData.get("applicationType") as "portal" | "external") || "external";
-    const companyName = formData.get("companyName") as string;
-    const companyAddress = formData.get("companyAddress") as string;
-    const roleTitle = formData.get("role") as string;
-    const startDate = formData.get("startDate") as string;
-    const endDate = formData.get("endDate") as string;
-    const stipend = formData.get("stipend") as string;
-    const workMode = formData.get("workMode") as string;
-    
-    // External specifics
-    const companyWebsite = formData.get("companyWebsite") as string;
-    const hrName = formData.get("hrName") as string;
-    const hrEmail = formData.get("hrEmail") as string;
-    const hrPhone = formData.get("hrPhone") as string;
-    const offerLetterUrl = formData.get("offerLetterUrl") as string;
-    const companyIdProofUrl = formData.get("companyIdProofUrl") as string;
-    const parentConsentUrl = formData.get("parentConsentUrl") as string;
-    const discoverySource = formData.get("discoverySource") as string;
+    // 2. Extract and validate form data
+    const applicationType = validateEnum(
+      formData.get("applicationType") || "external",
+      ["portal", "external"] as const,
+      "Application type"
+    );
+    const companyName = sanitize(formData.get("companyName"), "Company Name", 200);
+    const companyAddress = sanitizeOptional(formData.get("companyAddress"), "Company Address", 500);
+    const roleTitle = sanitize(formData.get("role"), "Job Role", 200);
+    const startDate = validateDate(formData.get("startDate"), "Start Date");
+    const endDate = validateDate(formData.get("endDate"), "End Date");
+    const stipend = sanitizeOptional(formData.get("stipend"), "Stipend", 100);
+    const workMode = sanitizeOptional(formData.get("workMode"), "Work Mode", 50);
 
-    if (!companyName || !roleTitle || !startDate || !endDate || (!hrName && applicationType === "external")) {
-      return { error: "Missing required fields." };
+    // External-specific validation
+    let companyWebsite: string | null = null;
+    let hrName: string | null = null;
+    let hrEmail: string | null = null;
+    let hrPhone: string | null = null;
+    let offerLetterUrl: string | null = null;
+    let companyIdProofUrl: string | null = null;
+    let parentConsentUrl: string | null = null;
+    let discoverySource: string | null = null;
+
+    if (applicationType === "external") {
+      companyWebsite = validateUrl(formData.get("companyWebsite"), "Company Website");
+      hrName = sanitize(formData.get("hrName"), "HR Name", 200);
+      hrEmail = validateEmail(formData.get("hrEmail"), "HR Email");
+      hrPhone = validatePhone(formData.get("hrPhone"), "HR Phone");
+      offerLetterUrl = validateUrl(formData.get("offerLetterUrl"), "Offer Letter URL");
+      companyIdProofUrl = validateUrl(formData.get("companyIdProofUrl"), "Company ID Proof URL");
+      parentConsentUrl = validateUrl(formData.get("parentConsentUrl"), "Parent Consent URL");
+      discoverySource = sanitizeOptional(formData.get("discoverySource"), "Discovery Source", 100) || "Other";
     }
 
     // 3. Create the internship request
@@ -65,7 +85,7 @@ export async function submitInternshipRequest(formData: FormData) {
       workMode,
       offerLetterUrl: offerLetterUrl || null,
       status: "pending_tutor", // Starts at tier 1 automatically
-      currentTier: 1, // 1=Tutor, 2=PC, 3=HOD, 4=Dean
+      currentTier: 1,
       submittedAt: new Date(),
     }).returning({ id: internshipRequests.id });
 
@@ -76,12 +96,12 @@ export async function submitInternshipRequest(formData: FormData) {
       await db.insert(externalInternshipDetails).values({
         requestId: reqId,
         companyWebsite: companyWebsite || "Not provided",
-        hrName,
-        hrEmail,
-        hrPhone,
+        hrName: hrName!,
+        hrEmail: hrEmail!,
+        hrPhone: hrPhone!,
         companyIdProofUrl: companyIdProofUrl || "Not provided",
         parentConsentUrl: parentConsentUrl || "Not provided",
-        workMode,
+        workMode: workMode || "onsite",
         discoverySource: discoverySource || "Other",
       });
     }
@@ -90,9 +110,12 @@ export async function submitInternshipRequest(formData: FormData) {
     revalidatePath("/dashboard/student");
     
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return { error: error.message };
+    }
     console.error("Application submission error:", error);
-    return { error: error.message || "Failed to submit application." };
+    return { error: "Failed to submit application." };
   }
 }
 
@@ -102,7 +125,7 @@ export async function createPortalApplication(jobId: string, companyName: string
     return { error: "Not authenticated" };
   }
   const userId = session.user.id;
-  const role = (session.user as any).role;
+  const role = session.user.role;
 
   if (role !== "student") return { error: "Only students can apply." };
 
@@ -132,8 +155,9 @@ export async function createPortalApplication(jobId: string, companyName: string
     revalidatePath("/jobs");
     
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Portal apply error:", error);
-    return { error: error.message || "Failed to submit portal application." };
+    const msg = error instanceof Error ? error.message : "Failed to submit portal application.";
+    return { error: msg };
   }
 }

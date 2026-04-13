@@ -7,7 +7,7 @@ import { auth } from "@/lib/auth";
 
 export default async function UsersPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
   const session = await auth();
-  const userRole = (session?.user as any)?.role || "";
+  const userRole = session?.user?.role || "";
   const searchParams = await props.searchParams;
   const queryParam = (searchParams.q || "").toLowerCase();
   const roleFilter = searchParams.role || "";

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Outfit, JetBrains_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-body", weight: ["300", "400", "500", "600", "700"] });
@@ -29,8 +30,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   themeColor: "#1E9BD7",
 };
 
@@ -43,6 +42,18 @@ export default function RootLayout({
     <html lang="en" data-theme="light">
       <body className={`${inter.variable} ${outfit.variable} ${jetbrainsMono.variable}`}>
         {children}
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              fontFamily: "var(--font-body)",
+              borderRadius: "var(--border-radius-md)",
+              boxShadow: "var(--shadow-lg)",
+            },
+          }}
+          richColors
+          closeButton
+        />
       </body>
     </html>
   );

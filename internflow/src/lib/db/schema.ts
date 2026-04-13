@@ -260,6 +260,8 @@ export const internshipRequests = pgTable("internship_requests", {
   currentTier: integer("current_tier").default(0),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
+  lastReviewedBy: uuid("last_reviewed_by").references(() => users.id),
+  lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
   jobPostingId: uuid("job_posting_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),

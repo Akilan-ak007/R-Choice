@@ -35,41 +35,43 @@ export async function saveBasicProfile(formData: {
 
     let profileId: string;
 
-    if (existingProfile) {
-      profileId = existingProfile.id;
-      await db.update(studentProfiles).set({
-        registerNo: formData.registerNo,
-        department: formData.department,
-        year: formData.year,
-        section: formData.section,
-        cgpa: cgpaVal,
-        professionalSummary: formData.professionalSummary,
-        profileCompletionScore: score 
-      }).where(eq(studentProfiles.id, existingProfile.id));
-    } else {
-      const [newProfile] = await db.insert(studentProfiles).values({
-        userId,
-        registerNo: formData.registerNo,
-        department: formData.department,
-        year: formData.year,
-        section: formData.section,
-        cgpa: cgpaVal,
-        professionalSummary: formData.professionalSummary,
-        profileCompletionScore: score,
-      }).returning({ id: studentProfiles.id });
-      profileId = newProfile.id;
-    }
-
-    if (formData.roles && formData.roles.length > 0) {
-      await db.delete(studentJobInterests).where(eq(studentJobInterests.studentId, profileId));
-      for (const role of formData.roles.slice(0, 5)) {
-        await db.insert(studentJobInterests).values({
-          studentId: profileId,
-          roleCategory: "General",
-          roleName: role
-        });
+    await db.transaction(async (tx) => {
+      if (existingProfile) {
+        profileId = existingProfile.id;
+        await tx.update(studentProfiles).set({
+          registerNo: formData.registerNo,
+          department: formData.department,
+          year: formData.year,
+          section: formData.section,
+          cgpa: cgpaVal,
+          professionalSummary: formData.professionalSummary,
+          profileCompletionScore: score 
+        }).where(eq(studentProfiles.id, existingProfile.id));
+      } else {
+        const [newProfile] = await tx.insert(studentProfiles).values({
+          userId,
+          registerNo: formData.registerNo,
+          department: formData.department,
+          year: formData.year,
+          section: formData.section,
+          cgpa: cgpaVal,
+          professionalSummary: formData.professionalSummary,
+          profileCompletionScore: score,
+        }).returning({ id: studentProfiles.id });
+        profileId = newProfile.id;
       }
-    }
+
+      if (formData.roles && formData.roles.length > 0) {
+        await tx.delete(studentJobInterests).where(eq(studentJobInterests.studentId, profileId));
+        for (const role of formData.roles.slice(0, 5)) {
+          await tx.insert(studentJobInterests).values({
+            studentId: profileId,
+            roleCategory: "General",
+            roleName: role
+          });
+        }
+      }
+    });
 
     revalidatePath("/profile");
     return { success: true, score };
@@ -86,7 +88,7 @@ export async function saveDeanProfile(formData: {
   email: string;
 }) {
   const session = await auth();
-  if (!session?.user?.id || (session.user as any).role !== "dean") {
+  if (!session?.user?.id || session.user.role !== "dean") {
     return { error: "Not authorized" };
   }
 

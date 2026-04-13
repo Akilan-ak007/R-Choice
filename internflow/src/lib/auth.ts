@@ -4,8 +4,25 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { authConfig } from "./auth.config";
+
+// Simple in-memory rate limiter to prevent brute force at the API level
+const rateLimitMap = new Map<string, { count: number; expiresAt: number }>();
+
+function checkRateLimit(email: string) {
+  const now = Date.now();
+  const record = rateLimitMap.get(email);
+  if (record && record.expiresAt > now) {
+    if (record.count >= 10) return false;
+    record.count += 1;
+    return true;
+  }
+  rateLimitMap.set(email, { count: 1, expiresAt: now + 5 * 60 * 1000 }); // 5 minutes
+  return true;
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -21,6 +38,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = credentials.email as string;
         const password = credentials.password as string;
         const role = credentials.role as string;
+
+        if (!checkRateLimit(email)) {
+          console.warn(`[AUTH] Rate limit exceeded for email: ${email}`);
+          throw new Error("Too many login attempts. Please try again later.");
+        }
 
         // Find user by email and role
         const [user] = await db
@@ -74,28 +96,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.role = (user as any).role;
-        token.id = user.id;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        (session.user as any).role = token.role;
-        (session.user as any).id = token.id;
-      }
-      return session;
-    },
-  },
-  pages: {
-    signIn: "/",
-    error: "/",
-  },
-  session: {
-    strategy: "jwt",
-    maxAge: 8 * 60 * 60, // 8 hours for staff, will check role in middleware
-  },
 });
