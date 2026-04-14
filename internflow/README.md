@@ -1,210 +1,348 @@
-# R-Choice
+<p align="center">
+  <img src="docs/screenshots/login.png" alt="R-Choice Portal" width="100%" />
+</p>
 
-> A multi-role internship and placement workflow platform for Rathinam College.
+<h1 align="center">🎓 R-Choice</h1>
 
-R-Choice brings students, faculty approvers, administrators, and company partners onto one platform. It handles the full internship lifecycle: profile building, job discovery, applications, approval routing, company workflows, and placement visibility.
+<p align="center">
+  <strong>Internship & Placement Management Platform</strong><br/>
+  <em>Rathinam College of Arts and Science</em>
+</p>
 
-## Why This Project Exists
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16.2-black?style=for-the-badge&logo=next.js" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react" alt="React" />
+  <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Drizzle-ORM-C5F74F?style=for-the-badge&logo=drizzle" alt="Drizzle" />
+  <img src="https://img.shields.io/badge/PostgreSQL-Neon-4169E1?style=for-the-badge&logo=postgresql" alt="PostgreSQL" />
+</p>
 
-Internship and placement operations usually get split across forms, spreadsheets, email threads, and manual follow-ups. R-Choice centralizes that process into a single system with role-aware dashboards and approval queues.
+<p align="center">
+  <img src="https://img.shields.io/badge/status-production_ready-brightgreen?style=flat-square" alt="Status" />
+  <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square" alt="Build" />
+  <img src="https://img.shields.io/badge/license-private-red?style=flat-square" alt="License" />
+</p>
 
-Core goals:
+---
 
-- Give students a clear path from profile completion to application tracking.
-- Give tutors, coordinators, HODs, deans, placement officers, and principals structured approval workflows.
-- Give companies a dedicated portal to register, post roles, and review applicants.
-- Give the placement cell better visibility into approvals, jobs, students, and outcomes.
+## 🌟 Overview
 
-## Experience Overview
+**R-Choice** is a full-stack internship and placement management platform that unifies students, faculty approvers, administrators, and company partners into a single, role-aware system. It replaces fragmented spreadsheets, email chains, and manual approval workflows with a streamlined digital pipeline.
 
-### Student
+> *From profile building to placement certification — seamlessly managed.*
 
-- Build a professional profile with skills, certifications, projects, and links.
-- Browse approved internship opportunities.
-- Apply to jobs and monitor application status.
-- Trigger internship request flows tied to approval routing.
+### ✨ Key Highlights
 
-### Staff and Admin
+- 🏗️ **8-Role Architecture** — Student, Tutor, Coordinator, HOD, Dean, PO, Principal, Company
+- 🔄 **6-Tier Approval Pipeline** — Automated routing through institutional hierarchy
+- 📊 **Real-Time Dashboards** — Role-specific analytics with animated visualizations
+- 🏢 **Company Portal** — Self-service registration, job posting, and applicant review
+- 🔐 **Enterprise Security** — Rate limiting, CSRF protection, audit logging, IDOR prevention
+- 📱 **Responsive Design** — Glassmorphism UI with dark mode support
 
-- Review approval queues based on institutional hierarchy.
-- Manage student workflows at tutor, coordinator, HOD, dean, placement officer, and principal levels.
-- Track applications, companies, jobs, and placement activity through dashboards.
+---
 
-### Company Partner
+## 🎯 The Problem
 
-- Register and maintain company information.
-- Post internship roles.
-- Review applicants and participate in hiring workflows.
+Internship and placement operations at educational institutions typically suffer from:
 
-## Role Matrix
+| Pain Point | Traditional Approach | R-Choice Solution |
+|---|---|---|
+| **Approval Routing** | Manual email chains | Automated 6-tier pipeline |
+| **Application Tracking** | Spreadsheets | Real-time status dashboard |
+| **Company Management** | Ad-hoc coordination | Self-service portal |
+| **Compliance** | Paper trails | Digital audit logs |
+| **Visibility** | Disconnected data | Unified analytics |
 
-| Role | Purpose |
-| --- | --- |
-| Student | Apply for internships, manage profile, track applications |
-| Tutor | Tier 1 approval flow |
-| Placement Coordinator | Tier 2 approval flow |
-| HOD | Department-level approval |
-| Dean | Admin approval |
-| Placement Officer | Placement oversight and approvals |
-| Principal | Final-level approval visibility |
-| Company | Company registration and hiring portal |
+---
 
-## Tech Stack
+## 🏛️ Architecture
 
-| Layer | Stack |
-| --- | --- |
-| Frontend | Next.js 16, React 19, App Router, CSS Modules |
-| Auth | NextAuth credentials provider |
-| Database | PostgreSQL via Neon |
-| ORM | Drizzle ORM |
-| File / Media | Cloudinary |
-| Email | Nodemailer (SMTP) |
-| Charts / UI | Recharts, Lucide, Framer Motion |
-| Testing | Playwright |
-
-## Notable Product Areas
-
-- Multi-role login and dashboard routing
-- Student profile builder
-- Internship and job application workflows
-- Institutional approval chain
-- Company onboarding and job posting
-- Admin analytics and operational dashboards
-- Email-assisted verification flows
-
-## Project Structure
-
-```text
-src/
-  app/
-    (dashboard)/        Role-based dashboard pages
-    actions/            Server actions for auth, jobs, approvals, profile, admin
-    api/                Upload and app APIs
-  components/           Reusable UI and dashboard components
-  lib/
-    auth.ts             NextAuth configuration
-    db/                 Drizzle schema, queries, seeds, and utilities
-    cloudinary.ts       Media configuration
-    mail.ts             SMTP mail helpers
-e2e/                    End-to-end Playwright tests
-scripts/                Utility and validation scripts
-drizzle/                Database migration artifacts
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        FRONTEND                              │
+│   Next.js 16 App Router  •  React 19  •  CSS Modules        │
+│   Framer Motion  •  Lucide Icons  •  Recharts                │
+├─────────────────────────────────────────────────────────────┤
+│                     SERVER ACTIONS                            │
+│   Auth  •  Jobs  •  Approvals  •  Profile  •  Notifications  │
+├─────────────────────────────────────────────────────────────┤
+│                      DATA LAYER                              │
+│   Drizzle ORM  •  Neon PostgreSQL  •  NextAuth v5            │
+├─────────────────────────────────────────────────────────────┤
+│                    INTEGRATIONS                              │
+│   Cloudinary (Media)  •  Nodemailer (SMTP)  •  Playwright    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Local Setup
+---
 
-### 1. Install dependencies
+## 👥 Role Matrix
+
+| Role | Access Level | Dashboard | Key Capabilities |
+|---|---|---|---|
+| 🎓 **Student** | Self-service | Student | Profile builder, job browser, application tracker, OD requests |
+| 📖 **Tutor** | Tier 1 Approver | Staff | Review & approve student internship requests |
+| 📋 **Placement Coordinator** | Tier 2 Approver | Staff | Coordinate placement activities, manage approvals |
+| 🏛️ **HOD** | Tier 3 Approver | Staff | Department-level oversight and approvals |
+| ⭐ **Dean** | Admin | Admin | Institutional approvals, analytics, user management |
+| 📊 **Placement Officer** | Admin | Admin | Job approvals, company reviews, placement analytics |
+| 👑 **Principal** | Admin | Admin | Final authority, full system visibility |
+| 💼 **Company** | External | Company | Registration, job posting, applicant management |
+
+---
+
+## 🔄 Approval Pipeline
+
+```
+Student submits OD Request
+        │
+        ▼
+   ┌─────────┐    ┌──────────────┐    ┌─────┐
+   │  Tutor  │───▶│  Coordinator │───▶│ HOD │
+   │ Tier 1  │    │    Tier 2     │    │T. 3 │
+   └─────────┘    └──────────────┘    └──┬──┘
+                                         │
+        ┌────────────────────────────────┘
+        ▼
+   ┌─────────┐    ┌─────────────────┐    ┌───────────┐
+   │  Dean   │───▶│Placement Officer│───▶│ Principal │
+   │ Tier 4  │    │     Tier 5      │    │  Tier 6   │
+   └─────────┘    └─────────────────┘    └─────┬─────┘
+                                               │
+                                               ▼
+                                         ✅ APPROVED
+```
+
+Each tier auto-routes to the next authority. Rejections include feedback and return to the student.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| **Framework** | Next.js 16 (App Router) | Full-stack React framework |
+| **UI Library** | React 19 | Component architecture |
+| **Language** | TypeScript 5 | Type-safe development |
+| **Styling** | CSS Modules | Scoped, maintainable styles |
+| **Animation** | Framer Motion | Micro-interactions & transitions |
+| **Icons** | Lucide React | Consistent iconography |
+| **Charts** | Recharts | Data visualizations |
+| **Auth** | NextAuth v5 (Beta) | Credential-based authentication |
+| **Database** | PostgreSQL (Neon) | Serverless relational database |
+| **ORM** | Drizzle ORM | Type-safe database queries |
+| **File Storage** | Cloudinary | Resume & media uploads |
+| **Email** | Nodemailer | SMTP-based notifications |
+| **PDF** | jsPDF + html2canvas | Certificate & report generation |
+| **Testing** | Playwright | End-to-end browser tests |
+
+---
+
+## 📁 Project Structure
+
+```
+internflow/
+├── src/
+│   ├── app/
+│   │   ├── (dashboard)/          # Role-based dashboard pages
+│   │   │   ├── dashboard/        # Student, Staff, Admin, Company dashboards
+│   │   │   ├── jobs/             # Job board, posting, management
+│   │   │   ├── applications/     # OD request forms & tracking
+│   │   │   ├── approvals/        # Staff approval queues
+│   │   │   ├── companies/        # Company directory & reviews
+│   │   │   ├── students/         # Student directory
+│   │   │   ├── profile/          # Profile builder & vCard
+│   │   │   ├── reports/          # Work report management
+│   │   │   ├── settings/         # User & system settings
+│   │   │   └── users/            # User management (admin)
+│   │   ├── actions/              # Server actions
+│   │   │   ├── auth.ts           # Registration, login
+│   │   │   ├── jobs.ts           # CRUD, approvals
+│   │   │   ├── approvals.ts      # OD pipeline
+│   │   │   ├── profile.ts        # Profile management
+│   │   │   ├── admin.ts          # User & system admin
+│   │   │   └── notifications.ts  # Notification system
+│   │   ├── api/                  # API routes (uploads)
+│   │   └── v/[id]/               # Public vCard pages
+│   ├── components/
+│   │   ├── dashboard/            # Dashboard-specific components
+│   │   │   ├── admin/            # Admin widgets (audit log, charts)
+│   │   │   ├── jobs/             # Job cards, swipe deck
+│   │   │   └── DashboardShell.tsx # Main layout shell
+│   │   └── ui/                   # Reusable UI primitives
+│   └── lib/
+│       ├── auth.ts               # NextAuth configuration
+│       ├── db/
+│       │   ├── schema.ts         # Drizzle schema definitions
+│       │   ├── queries/          # Reusable query functions
+│       │   ├── seed.ts           # Dev seed data
+│       │   └── seed-students.ts  # Batch student seeding
+│       ├── cloudinary.ts         # Media upload config
+│       ├── mail.ts               # SMTP helpers
+│       └── validation.ts         # Input sanitization
+├── e2e/                          # Playwright E2E tests
+├── drizzle/                      # Database migrations
+├── public/                       # Static assets
+└── docs/                         # Documentation & screenshots
+```
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js** 18+ 
+- **PostgreSQL** database (we recommend [Neon](https://neon.tech))
+
+### 1. Clone & Install
 
 ```bash
+git clone https://github.com/iamharishrohith/R-Choice.git
+cd R-Choice/internflow
 npm install
 ```
 
-### 2. Configure environment variables
+### 2. Environment Setup
 
-Create `.env.local` and set the values your environment needs.
-
-Typical variables used by the app:
+Create `.env.local` in the project root:
 
 ```env
-DATABASE_URL=
-AUTH_SECRET=
+# Database
+DATABASE_URL=postgresql://user:pass@host/dbname
+
+# Auth
+AUTH_SECRET=your-random-secret-key
 AUTH_TRUST_HOST=true
 
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
+# Cloudinary (for media uploads)
+CLOUDINARY_CLOUD_NAME=your-cloud
+CLOUDINARY_API_KEY=your-key
+CLOUDINARY_API_SECRET=your-secret
 
-SMTP_HOST=
-SMTP_PORT=
-SMTP_USER=
-SMTP_PASS=
-EMAIL_FROM=
+# SMTP (for email notifications)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email
+SMTP_PASS=your-app-password
+EMAIL_FROM=noreply@rathinam.edu.in
 ```
 
-### 3. Run the app
+### 3. Database Setup
+
+```bash
+# Push schema to database
+npx drizzle-kit push
+
+# Seed test accounts
+npx tsx src/lib/db/seed.ts
+
+# Seed student batch (optional)
+npx tsx src/lib/db/seed-students.ts
+```
+
+### 4. Start Development Server
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) — you're ready to go! 🎉
 
-## Test Accounts for Local Validation
+---
 
-The seeded local accounts use a shared password:
+## 🔑 Test Accounts
 
-```text
+All seeded accounts use the shared password:
+
+```
 R-Choice@2025
 ```
 
-| Role | Email |
-| --- | --- |
-| Student | `student@rathinam.edu.in` |
-| Tutor | `tutor@rathinam.edu.in` |
-| Placement Coordinator | `pc@rathinam.edu.in` |
-| HOD | `hod@rathinam.edu.in` |
-| Dean | `dean@rathinam.edu.in` |
-| Placement Officer | `po@rathinam.edu.in` |
-| Principal | `principal@rathinam.edu.in` |
-| Company Partner | `hr@techcorp.com` |
+| Role | Email | Dashboard |
+|---|---|---|
+| 🎓 Student | `student@rathinam.edu.in` | `/dashboard/student` |
+| 📖 Tutor | `tutor@rathinam.edu.in` | `/dashboard/staff` |
+| 📋 Coordinator | `pc@rathinam.edu.in` | `/dashboard/staff` |
+| 🏛️ HOD | `hod@rathinam.edu.in` | `/dashboard/staff` |
+| ⭐ Dean | `dean@rathinam.edu.in` | `/dashboard/admin` |
+| 📊 PO | `po@rathinam.edu.in` | `/dashboard/admin` |
+| 👑 Principal | `principal@rathinam.edu.in` | `/dashboard/admin` |
+| 💼 Company | `hr@techcorp.com` | `/dashboard/company` |
 
-Seed source:
+---
 
-- [`src/lib/db/seed-test-accounts.ts`](./src/lib/db/seed-test-accounts.ts)
-
-## Validation Commands
+## ✅ Validation
 
 ```bash
-npm run lint
+# Type checking
 npx tsc --noEmit
+
+# Linting
+npm run lint
+
+# Production build
 npm run build
+
+# E2E Tests
 npx playwright test
 ```
 
-Focused suites used during validation:
+### Test Suites
 
 ```bash
-npx playwright test e2e/auth.spec.ts
-npx playwright test e2e/applications.spec.ts
-npx playwright test e2e/full-pipeline.spec.ts
+npx playwright test e2e/auth.spec.ts           # Authentication flows
+npx playwright test e2e/applications.spec.ts    # Student application pipeline
+npx playwright test e2e/full-pipeline.spec.ts   # End-to-end approval chain
 ```
 
-## Current Validation Snapshot
+---
 
-Recent validation work confirmed:
+## 🔐 Security
 
-- TypeScript buildability with `npx tsc --noEmit`
-- Production build completion with `npm run build`
-- Authentication flow coverage in Playwright
-- Student application flow coverage in Playwright
-- Full company-to-approval pipeline coverage in Playwright
+| Feature | Implementation |
+|---|---|
+| **Authentication** | NextAuth v5 with credential provider + role validation |
+| **Authorization** | Server-side role checks on every action |
+| **Input Sanitization** | Custom validation library with XSS prevention |
+| **CSRF Protection** | Built-in NextAuth CSRF tokens |
+| **Rate Limiting** | Login attempt tracking with lockout |
+| **Audit Logging** | All admin actions logged with IP, timestamp, user |
+| **Security Headers** | CSP, HSTS, X-Frame-Options via `next.config.ts` |
+| **IDOR Prevention** | Ownership verification on all mutations |
 
-Note:
+---
 
-- Repo-wide ESLint cleanup is still an ongoing quality task if you want a fully lint-clean codebase.
+## 🗺️ Roadmap
 
-## Security and Platform Notes
+- [ ] Migrate middleware to `proxy` convention (Next.js 16)
+- [ ] Replace remaining `any` types with strict interfaces
+- [ ] Add CI/CD pipeline with GitHub Actions
+- [ ] Implement real-time notifications via WebSocket
+- [ ] Mobile app build with Capacitor
+- [ ] Advanced analytics with cohort tracking
+- [ ] PDF certificate generation for completed internships
 
-- Security headers are configured in `next.config.ts`.
-- Cloudinary remote images are explicitly allowed through Next image config.
-- Authentication includes role-aware credential checks and lockout tracking.
-- SMTP sending is safe in development when mail credentials are absent.
+---
 
-## Roadmap Ideas
+## 🤝 Contributing
 
-- Finish repo-wide lint remediation
-- Add CI validation for auth, applications, and pipeline suites
-- Add seed/reset utilities for deterministic test environments
-- Expand role-based audit logging and reporting
+1. Validate changes with `npx tsc --noEmit` and `npm run build`
+2. Run relevant Playwright tests for affected workflows
+3. Follow existing CSS Module and Server Action patterns
+4. Use Lucide icons — no emoji in UI components
 
-## Contributing
+---
 
-If you are extending the project, prefer validating changes with:
+## 📜 License
 
-1. `npx tsc --noEmit`
-2. `npm run build`
-3. Targeted Playwright coverage for the affected workflow
+This project is proprietary software built for **Rathinam College of Arts and Science**.  
+All rights reserved.
 
-## Credits
+---
 
-Built for Rathinam College internship and placement operations, with a product direction centered on clarity, operational control, and a better student-to-company workflow.
+<p align="center">
+  <strong>Built with ❤️ for Rathinam College</strong><br/>
+  <em>Internship & Placement Cell • Powered by Symbio</em>
+</p>

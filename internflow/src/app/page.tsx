@@ -238,7 +238,7 @@ export default function LoginPage() {
                 // Let all roles render so E2E scripts can find them even if they are in the back
                 const isHidden = absDiff > 2;
 
-                const translateX = diff * 115;
+                const translateX = diff * 135;
                 const translateZ = absDiff * -120;
                 const rotateY = diff * -15;
                 const scale = Math.max(0, 1 - absDiff * 0.15);
@@ -267,26 +267,7 @@ export default function LoginPage() {
               })}
             </div>
 
-            <div className={styles.roleShortcutGrid} aria-label="Staff and admin roles">
-              {carouselRoles.map((role) => {
-                const isSelected = selectedRole === role.id;
 
-                return (
-                  <button
-                    key={`${role.id}-shortcut`}
-                    type="button"
-                    className={`${styles.roleShortcut} ${isSelected ? styles.roleShortcutActive : ""}`}
-                    onClick={() => handleRoleSelect(role.id)}
-                    aria-pressed={isSelected}
-                  >
-                    <span className={`${styles.roleShortcutIcon} ${styles[role.category]}`}>
-                      {role.icon}
-                    </span>
-                    <span className={styles.roleShortcutText}>{role.label}</span>
-                  </button>
-                );
-              })}
-            </div>
 
             <div className={styles.loginRoleBanner}>
               <div className={`${styles.roleIcon} ${styles[selectedRoleInfo?.category || "student"]}`}>

@@ -540,7 +540,7 @@
 /* 3D Role Carousel Container */
 .carousel3DContainer {
   position: relative;
-  height: 120px;
+  height: 130px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -603,8 +603,8 @@
 
 .carousel3DCard {
   position: absolute;
-  width: 140px;
-  height: 90px;
+  width: 120px;
+  height: 100px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -643,15 +643,18 @@
 }
 
 .carousel3DName {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-primary);
   text-align: center;
-  padding: 0 var(--space-2);
-  white-space: nowrap;
+  padding: 0 var(--space-1);
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   width: 100%;
+  line-height: 1.2;
 }
 
 /* Coloring specific to roles */
