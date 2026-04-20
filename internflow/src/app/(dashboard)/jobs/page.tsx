@@ -19,11 +19,19 @@ export default async function JobBoardPage() {
   const jobs = await fetchActiveJobs();
 
   let interests: Array<typeof studentJobInterests.$inferSelect> = [];
+  let appliedJobIds: string[] = [];
+
   if (isStudent) {
     const [profile] = await db.select().from(studentProfiles).where(eq(studentProfiles.userId, session.user.id)).limit(1);
     if (profile) {
       interests = await db.select().from(studentJobInterests).where(eq(studentJobInterests.studentId, profile.id));
     }
+
+    const apps = await db.select({ jobId: jobApplications.jobId })
+      .from(jobApplications)
+      .where(eq(jobApplications.studentId, session.user.id));
+    
+    appliedJobIds = apps.map((a) => a.jobId);
   }
 
   // Fetch selection results (visible to all roles as permanent record)
@@ -52,7 +60,7 @@ export default async function JobBoardPage() {
         <p>Browse and apply for verified internships from our corporate partners.</p>
       </div>
 
-      <JobBoardClient jobs={jobs} interests={interests} isStudent={isStudent} />
+      <JobBoardClient jobs={jobs} interests={interests} isStudent={isStudent} appliedJobIds={appliedJobIds} />
 
       {/* Selection Results — permanent record visible to all */}
       <SelectionResultsSection results={selectionResults} />

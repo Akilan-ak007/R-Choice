@@ -80,7 +80,7 @@ export default async function ApplicationsPage() {
         </div>
         <Link href="/applications/new" className="btn btn-primary" style={{ display: "flex", gap: "8px" }}>
           <PlusCircle size={18} />
-          New Request
+          External OD Request
         </Link>
       </div>
 

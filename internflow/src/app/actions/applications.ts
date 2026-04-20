@@ -159,45 +159,10 @@ export async function createPortalApplication(jobId: string) {
       status: "applied",
     });
 
-    // Initialize an OD approval request for the portal application so it appears in /applications.
-    const [existingRequest] = await db
-      .select({ id: internshipRequests.id })
-      .from(internshipRequests)
-      .where(and(eq(internshipRequests.studentId, userId), eq(internshipRequests.jobPostingId, jobId)))
-      .limit(1);
-
-    if (!existingRequest) {
-      const approvers = await getApproversForStudent(userId);
-      if (!approvers.tutorId) {
-        return { error: "No class tutor mapped to your profile. Contact administration." };
-      }
-
-      const [companyUser] = await db
-        .select({ name: users.firstName })
-        .from(users)
-        .where(eq(users.id, job.postedBy))
-        .limit(1);
-
-      const startDate = new Date();
-      const endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 90);
-
-      await db.insert(internshipRequests).values({
-        studentId: userId,
-        jobPostingId: jobId,
-        applicationType: "portal",
-        companyName: companyUser?.name || "Company",
-        companyAddress: null,
-        role: job.title,
-        startDate: startDate.toISOString().slice(0, 10),
-        endDate: endDate.toISOString().slice(0, 10),
-        stipend: job.stipendSalary || "Unpaid",
-        workMode: job.workMode || "onsite",
-        status: "pending_tutor",
-        currentTier: 1,
-        submittedAt: new Date(),
-      });
-    }
+    // NOTE: For internal/portal applications, we do NOT create an internshipRequests
+    // record here. The flow is: Student Applies → Company Shortlists → Company Posts
+    // Results (sends verification code) → Student enters code → verifyAndInitializeOD
+    // creates the OD request and starts the 6-tier approval chain.
 
     revalidatePath("/jobs");
     revalidatePath("/applicants");

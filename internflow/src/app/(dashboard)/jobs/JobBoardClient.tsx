@@ -59,7 +59,7 @@ function VelocityBadge() {
   );
 }
 
-export default function JobBoardClient({ jobs, interests, isStudent }: { jobs: JobCard[]; interests: Interest[]; isStudent: boolean }) {
+export default function JobBoardClient({ jobs, interests, isStudent, appliedJobIds = [] }: { jobs: JobCard[]; interests: Interest[]; isStudent: boolean; appliedJobIds?: string[] }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "swipe">("grid");
   const [minSalary, setMinSalary] = useState(0);
@@ -203,7 +203,7 @@ export default function JobBoardClient({ jobs, interests, isStudent }: { jobs: J
         />
       ) : viewMode === "swipe" ? (
         <div style={{ paddingBottom: "80px" }}>
-          <SwipeDeck jobs={sortedAndFilteredJobs} isStudent={isStudent} />
+          <SwipeDeck jobs={sortedAndFilteredJobs} isStudent={isStudent} appliedJobIds={appliedJobIds} />
         </div>
       ) : (
         <div className="grid grid-2" style={{ gap: "var(--space-5)", paddingBottom: "80px" }}>
@@ -316,7 +316,7 @@ export default function JobBoardClient({ jobs, interests, isStudent }: { jobs: J
 
                 <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "var(--space-4)", display: "flex", justifyContent: "center" }}>
                   {isStudent ? (
-                    <ApplyButton job={job} />
+                    <ApplyButton job={job} isApplied={appliedJobIds.includes(job.id)} />
                   ) : (
                     <Link href={`/jobs/${job.id}`} className="btn btn-outline" style={{ display: "flex", width: "100%", justifyContent: "center", gap: "8px" }}>
                       View Details

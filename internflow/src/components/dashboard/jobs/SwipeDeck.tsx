@@ -16,7 +16,7 @@ type SwipeJob = {
   requiredSkills?: string[] | null;
 };
 
-function SwipeCard({ job, index, onSwipe, isStudent }: { job: SwipeJob; index: number; onSwipe: (id: string, dir: "left" | "right") => void; isStudent: boolean }) {
+function SwipeCard({ job, index, onSwipe, isStudent, isApplied }: { job: SwipeJob; index: number; onSwipe: (id: string, dir: "left" | "right") => void; isStudent: boolean; isApplied: boolean }) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-15, 15]);
   const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
@@ -114,7 +114,7 @@ function SwipeCard({ job, index, onSwipe, isStudent }: { job: SwipeJob; index: n
             </button>
             {isStudent ? (
               <div style={{ flex: 1 }}>
-                <ApplyButton job={job} />
+                <ApplyButton job={job} isApplied={isApplied} />
               </div>
             ) : (
               <button 
@@ -136,7 +136,7 @@ function SwipeCard({ job, index, onSwipe, isStudent }: { job: SwipeJob; index: n
   );
 }
 
-export function SwipeDeck({ jobs, isStudent }: { jobs: SwipeJob[]; isStudent: boolean }) {
+export function SwipeDeck({ jobs, isStudent, appliedJobIds = [] }: { jobs: SwipeJob[]; isStudent: boolean; appliedJobIds?: string[] }) {
   const [deck, setDeck] = useState(jobs);
 
 
@@ -173,7 +173,8 @@ export function SwipeDeck({ jobs, isStudent }: { jobs: SwipeJob[]; isStudent: bo
               job={job} 
               index={idx} 
               onSwipe={handleSwipe} 
-              isStudent={isStudent} 
+              isStudent={isStudent}
+              isApplied={appliedJobIds.includes(job.id)}
             />
           )).reverse()}
         </AnimatePresence>

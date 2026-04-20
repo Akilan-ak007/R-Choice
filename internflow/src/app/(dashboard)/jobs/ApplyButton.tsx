@@ -8,8 +8,13 @@ type ApplyJob = {
   id: string;
 };
 
-export default function ApplyButton({ job }: { job: ApplyJob }) {
-  const [status, setStatus] = useState<"idle" | "loading" | "applied">("idle");
+type ApplyButtonProps = {
+  job: ApplyJob;
+  isApplied?: boolean;
+};
+
+export default function ApplyButton({ job, isApplied = false }: ApplyButtonProps) {
+  const [status, setStatus] = useState<"idle" | "loading" | "applied">(isApplied ? "applied" : "idle");
 
   const handleApply = async () => {
     setStatus("loading");
