@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { jobPostings, users, auditLogs } from "@/lib/db/schema";
+import { jobPostings, users, auditLogs, companyRegistrations } from "@/lib/db/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sanitize, sanitizeOptional, validateDate, ValidationError } from "@/lib/validation";
@@ -26,13 +26,20 @@ export async function createJobPosting(formData: FormData) {
     const stipendInfo = sanitizeOptional(formData.get("stipendInfo"), "Stipend Info", 100);
     const deadline = validateDate(formData.get("deadline"), "Application Deadline");
 
-    // Determine the company name from the user profile
+    // Determine the company record
+    const [company] = await db
+      .select({ id: companyRegistrations.id })
+      .from(companyRegistrations)
+      .where(eq(companyRegistrations.userId, session.user.id))
+      .limit(1);
+
     const workMode = sanitizeOptional(formData.get("workMode"), "Work Mode", 50) || "Hybrid";
     const duration = sanitizeOptional(formData.get("duration"), "Duration", 100) || "3 Months";
     
     await db.insert(jobPostings).values({
       postedBy: session.user.id,
       postedByRole: "company",
+      companyId: company?.id || null,
       title,
       jobType: "Internship",
       description,
