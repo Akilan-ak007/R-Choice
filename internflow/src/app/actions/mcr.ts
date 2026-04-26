@@ -9,7 +9,7 @@ import bcrypt from "bcryptjs";
 import { sendCompanyApprovalEmail } from "@/lib/mail";
 import { revalidatePath } from "next/cache";
 
-export async function generateCompanyRegistrationLink() {
+export async function generateCompanyRegistrationLink(expiryDays: number = 7) {
   const session = await auth();
   if (!session?.user?.id || session.user.role !== "management_corporation") {
     return { error: "Unauthorized" };
@@ -18,7 +18,7 @@ export async function generateCompanyRegistrationLink() {
   try {
     const token = randomBytes(32).toString("hex");
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+    expiresAt.setDate(expiresAt.getDate() + expiryDays);
 
     await db.insert(companyRegistrationLinks).values({
       token,
