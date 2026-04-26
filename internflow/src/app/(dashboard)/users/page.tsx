@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { sql } from "drizzle-orm";
+import { sql, ilike, or, eq, and, type SQL } from "drizzle-orm";
 import { Mail, Shield, Clock, Plus } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -12,8 +12,12 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
   const session = await auth();
   const userRole = session?.user?.role || "";
   const searchParams = await props.searchParams;
-  const queryParam = (searchParams.q || "").toLowerCase();
+  const queryParam = searchParams.q || "";
   const roleFilter = searchParams.role || "";
+  
+  const page = parseInt(searchParams.page || "1", 10);
+  const pageSize = 20;
+  const offset = (page - 1) * pageSize;
 
   async function deleteUser(formData: FormData) {
     "use server";
@@ -41,20 +45,31 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
     revalidatePath("/users");
   }
 
-  // Fetch all users from the database natively via Drizzle
-  let allUsers = await db.select().from(users).orderBy(users.createdAt);
-
-  if (queryParam || roleFilter) {
-    allUsers = allUsers.filter(u => {
-      const matchRole = roleFilter ? u.role === roleFilter : true;
-      const matchQ = queryParam ? (
-        u.firstName.toLowerCase().includes(queryParam) ||
-        u.lastName.toLowerCase().includes(queryParam) ||
-        (u.email && u.email.toLowerCase().includes(queryParam))
-      ) : true;
-      return matchRole && matchQ;
-    });
+  const conditions: SQL[] = [];
+  if (roleFilter) {
+    conditions.push(eq(users.role, roleFilter as typeof users.role.enumValues[number]));
   }
+  if (queryParam) {
+    const search = or(
+      ilike(users.firstName, `%${queryParam}%`),
+      ilike(users.lastName, `%${queryParam}%`),
+      ilike(users.email, `%${queryParam}%`)
+    );
+    if (search) conditions.push(search);
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const allUsers = await db.select()
+    .from(users)
+    .where(whereClause)
+    .orderBy(users.createdAt)
+    .limit(pageSize)
+    .offset(offset);
+
+  const countResult = await db.select({ count: sql`count(*)` }).from(users).where(whereClause);
+  const totalCount = Number(countResult[0]?.count || 0);
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
     <div className="animate-fade-in">
@@ -151,6 +166,29 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
           </table>
         </div>
       </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "var(--space-4)" }}>
+          <div style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
+            Showing {offset + 1} to {Math.min(offset + pageSize, totalCount)} of {totalCount} users
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            {page > 1 && (
+              <Link href={`/users?page=${page - 1}${queryParam ? `&q=${encodeURIComponent(queryParam)}` : ''}${roleFilter ? `&role=${encodeURIComponent(roleFilter)}` : ''}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                Previous
+              </Link>
+            )}
+            <span style={{ padding: "8px 12px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", background: "var(--bg-primary)" }}>
+              Page {page} of {totalPages}
+            </span>
+            {page < totalPages && (
+              <Link href={`/users?page=${page + 1}${queryParam ? `&q=${encodeURIComponent(queryParam)}` : ''}${roleFilter ? `&role=${encodeURIComponent(roleFilter)}` : ''}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                Next
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
