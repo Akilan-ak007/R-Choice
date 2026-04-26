@@ -48,41 +48,42 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
     const trimmedComment = comment?.trim() || null;
 
     if (action === "reject") {
-      await db
-        .update(internshipRequests)
-        .set({
-          status: "rejected",
-          lastReviewedBy: approverId,
-          lastReviewedAt: now,
-        })
-        .where(eq(internshipRequests.id, requestId));
+      await db.transaction(async (tx) => {
+        await tx
+          .update(internshipRequests)
+          .set({
+            status: "rejected",
+            lastReviewedBy: approverId,
+            lastReviewedAt: now,
+          })
+          .where(eq(internshipRequests.id, requestId));
 
-      // Log the rejection with reason
-      await db.insert(approvalLogs).values({
-        requestId,
-        approverId,
-        approverRole: role as AppRole,
-        tier: request.currentTier || 0,
-        action: "rejected",
-        comment: trimmedComment,
-      });
+        await tx.insert(approvalLogs).values({
+          requestId,
+          approverId,
+          approverRole: role as AppRole,
+          tier: request.currentTier || 0,
+          action: "rejected",
+          comment: trimmedComment,
+        });
 
-      await db.insert(auditLogs).values({
-        userId: approverId,
-        action: "reject_internship_application",
-        entityType: "internship_request",
-        entityId: requestId,
-        details: { tier: request.currentTier || 0, comment: trimmedComment },
-      });
+        await tx.insert(auditLogs).values({
+          userId: approverId,
+          action: "reject_internship_application",
+          entityType: "internship_request",
+          entityId: requestId,
+          details: { tier: request.currentTier || 0, comment: trimmedComment },
+        });
 
-      await db.insert(notifications).values({
-        userId: request.studentId as string,
-        type: "application_update",
-        title: "Application Rejected",
-        message: trimmedComment
-          ? `Your internship application for ${request.companyName} was rejected. Reason: ${trimmedComment}`
-          : `Your internship application for ${request.companyName} was rejected.`,
-        linkUrl: `/applications/${request.id}`,
+        await tx.insert(notifications).values({
+          userId: request.studentId as string,
+          type: "application_update",
+          title: "Application Rejected",
+          message: trimmedComment
+            ? `Your internship application for ${request.companyName} was rejected. Reason: ${trimmedComment}`
+            : `Your internship application for ${request.companyName} was rejected.`,
+          linkUrl: `/applications/${request.id}`,
+        });
       });
 
       revalidatePath("/approvals");
@@ -92,40 +93,42 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
 
     // Principal final approval (tier 7 → approved)
     if (role === "principal" && request.status === "pending_principal" && request.currentTier === 7) {
-      await db
-        .update(internshipRequests)
-        .set({
-          status: "approved",
-          lastReviewedBy: approverId,
-          lastReviewedAt: now,
-        })
-        .where(eq(internshipRequests.id, requestId));
+      await db.transaction(async (tx) => {
+        await tx
+          .update(internshipRequests)
+          .set({
+            status: "approved",
+            lastReviewedBy: approverId,
+            lastReviewedAt: now,
+          })
+          .where(eq(internshipRequests.id, requestId));
 
-      await db.insert(approvalLogs).values({
-        requestId,
-        approverId,
-        approverRole: role as AppRole,
-        tier: request.currentTier || 0,
-        action: "approved",
-        comment: trimmedComment,
-      });
+        await tx.insert(approvalLogs).values({
+          requestId,
+          approverId,
+          approverRole: role as AppRole,
+          tier: request.currentTier || 0,
+          action: "approved",
+          comment: trimmedComment,
+        });
 
-      await db.insert(auditLogs).values({
-        userId: approverId,
-        action: "approve_internship_final",
-        entityType: "internship_request",
-        entityId: requestId,
-        details: { tier: 7, comment: trimmedComment },
-      });
+        await tx.insert(auditLogs).values({
+          userId: approverId,
+          action: "approve_internship_final",
+          entityType: "internship_request",
+          entityId: requestId,
+          details: { tier: 7, comment: trimmedComment },
+        });
 
-      await db.insert(notifications).values({
-        userId: request.studentId as string,
-        type: "application_update",
-        title: "Application Approved!",
-        message: trimmedComment
-          ? `Your internship application for ${request.companyName} has received final approval. Note: ${trimmedComment}`
-          : `Your internship application for ${request.companyName} has received final approval.`,
-        linkUrl: `/applications/${request.id}`,
+        await tx.insert(notifications).values({
+          userId: request.studentId as string,
+          type: "application_update",
+          title: "Application Approved!",
+          message: trimmedComment
+            ? `Your internship application for ${request.companyName} has received final approval. Note: ${trimmedComment}`
+            : `Your internship application for ${request.companyName} has received final approval.`,
+          linkUrl: `/applications/${request.id}`,
+        });
       });
 
       revalidatePath("/approvals");
@@ -141,42 +144,44 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
       return { error: "You cannot approve this request at its current stage." };
     }
 
-    await db
-      .update(internshipRequests)
-      .set({
-        status: next.nextStatus as typeof request.status,
-        currentTier: next.nextTier,
-        lastReviewedBy: approverId,
-        lastReviewedAt: now,
-      })
-      .where(eq(internshipRequests.id, requestId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(internshipRequests)
+        .set({
+          status: next.nextStatus as typeof request.status,
+          currentTier: next.nextTier,
+          lastReviewedBy: approverId,
+          lastReviewedAt: now,
+        })
+        .where(eq(internshipRequests.id, requestId));
 
-    // Log the approval with optional endorsement
-    await db.insert(approvalLogs).values({
-      requestId,
-      approverId,
-      approverRole: role as AppRole,
-      tier: request.currentTier || 0,
-      action: "approved",
-      comment: trimmedComment,
-    });
+      // Log the approval with optional endorsement
+      await tx.insert(approvalLogs).values({
+        requestId,
+        approverId,
+        approverRole: role as AppRole,
+        tier: request.currentTier || 0,
+        action: "approved",
+        comment: trimmedComment,
+      });
 
-    await db.insert(auditLogs).values({
-      userId: approverId,
-      action: "advance_internship_tier",
-      entityType: "internship_request",
-      entityId: requestId,
-      details: { fromTier: request.currentTier || 0, toTier: next.nextTier, comment: trimmedComment },
-    });
+      await tx.insert(auditLogs).values({
+        userId: approverId,
+        action: "advance_internship_tier",
+        entityType: "internship_request",
+        entityId: requestId,
+        details: { fromTier: request.currentTier || 0, toTier: next.nextTier, comment: trimmedComment },
+      });
 
-    await db.insert(notifications).values({
-      userId: request.studentId as string,
-      type: "application_update",
-      title: "Application Progressed",
-      message: trimmedComment
-        ? `Your application for ${request.companyName} advanced to tier ${next.nextTier}. Comment: ${trimmedComment}`
-        : `Your application for ${request.companyName} advanced to tier ${next.nextTier} (${next.nextStatus}).`,
-      linkUrl: `/applications/${request.id}`,
+      await tx.insert(notifications).values({
+        userId: request.studentId as string,
+        type: "application_update",
+        title: "Application Progressed",
+        message: trimmedComment
+          ? `Your application for ${request.companyName} advanced to tier ${next.nextTier}. Comment: ${trimmedComment}`
+          : `Your application for ${request.companyName} advanced to tier ${next.nextTier} (${next.nextStatus}).`,
+        linkUrl: `/applications/${request.id}`,
+      });
     });
 
     revalidatePath("/approvals");
