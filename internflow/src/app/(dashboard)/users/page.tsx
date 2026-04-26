@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { sql } from "drizzle-orm";
 import { Mail, Shield, Clock, Plus } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -25,18 +26,16 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
 
     try {
       // Null out any nullable FK references to this user across all tables
-      await db.execute(
-        `DELETE FROM job_postings WHERE posted_by = '${targetUserId}' OR company_id = '${targetUserId}';
-         UPDATE internship_requests SET last_reviewed_by = NULL WHERE last_reviewed_by = '${targetUserId}';
-         UPDATE authority_mappings SET updated_by = NULL WHERE updated_by = '${targetUserId}';
-         DELETE FROM student_profiles WHERE user_id = '${targetUserId}';
-         DELETE FROM company_registrations WHERE user_id = '${targetUserId}';
-         DELETE FROM audit_logs WHERE user_id = '${targetUserId}';
-         DELETE FROM notifications WHERE user_id = '${targetUserId}';
-         DELETE FROM users WHERE id = '${targetUserId}';`
-      );
+      await db.execute(sql`DELETE FROM job_postings WHERE posted_by = ${targetUserId} OR company_id = ${targetUserId}`);
+      await db.execute(sql`UPDATE internship_requests SET last_reviewed_by = NULL WHERE last_reviewed_by = ${targetUserId}`);
+      await db.execute(sql`UPDATE authority_mappings SET updated_by = NULL WHERE updated_by = ${targetUserId}`);
+      await db.execute(sql`DELETE FROM student_profiles WHERE user_id = ${targetUserId}`);
+      await db.execute(sql`DELETE FROM company_registrations WHERE user_id = ${targetUserId}`);
+      await db.execute(sql`DELETE FROM audit_logs WHERE user_id = ${targetUserId}`);
+      await db.execute(sql`DELETE FROM notifications WHERE user_id = ${targetUserId}`);
+      await db.execute(sql`DELETE FROM users WHERE id = ${targetUserId}`);
     } catch {
-      await db.execute(`DELETE FROM users WHERE id = '${targetUserId}'`);
+      await db.execute(sql`DELETE FROM users WHERE id = ${targetUserId}`);
     }
 
     revalidatePath("/users");

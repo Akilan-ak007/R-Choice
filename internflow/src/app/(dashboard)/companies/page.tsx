@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { users, companyRegistrations } from "@/lib/db/schema";
 import { Building, Mail, Phone, Calendar } from "lucide-react";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { format } from "date-fns";
 import { auth } from "@/lib/auth";
 import Link from "next/link";
@@ -38,20 +38,18 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
 
     try {
       // Null out any nullable FK references to this user across all tables
-      await db.execute(
-        `DELETE FROM job_postings WHERE posted_by = '${companyId}' OR company_id = '${companyId}';
-         UPDATE internship_requests SET last_reviewed_by = NULL WHERE last_reviewed_by = '${companyId}';
-         UPDATE authority_mappings SET updated_by = NULL WHERE updated_by = '${companyId}';
-         DELETE FROM company_registrations WHERE user_id = '${companyId}';
-         DELETE FROM audit_logs WHERE user_id = '${companyId}';
-         DELETE FROM notifications WHERE user_id = '${companyId}';
-         DELETE FROM users WHERE id = '${companyId}';`
-      );
+      await db.execute(sql`DELETE FROM job_postings WHERE posted_by = ${companyId} OR company_id = ${companyId}`);
+      await db.execute(sql`UPDATE internship_requests SET last_reviewed_by = NULL WHERE last_reviewed_by = ${companyId}`);
+      await db.execute(sql`UPDATE authority_mappings SET updated_by = NULL WHERE updated_by = ${companyId}`);
+      await db.execute(sql`DELETE FROM company_registrations WHERE user_id = ${companyId}`);
+      await db.execute(sql`DELETE FROM audit_logs WHERE user_id = ${companyId}`);
+      await db.execute(sql`DELETE FROM notifications WHERE user_id = ${companyId}`);
+      await db.execute(sql`DELETE FROM users WHERE id = ${companyId}`);
     } catch {
       // If multi-statement fails, try individual deletes
       await db.delete(companyRegistrations).where(eq(companyRegistrations.userId, companyId));
       // Use Drizzle's raw execute for cascading delete
-      await db.execute(`DELETE FROM users WHERE id = '${companyId}'`);
+      await db.execute(sql`DELETE FROM users WHERE id = ${companyId}`);
     }
 
     revalidatePath("/companies");
