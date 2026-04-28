@@ -72,6 +72,7 @@ export function getNavSections(role: string): NavSection[] {
           { label: "All Students", href: "/students", icon: <GraduationCap size={20} /> },
           { label: "Applied Students", href: "/students/applied", icon: <Users size={20} /> },
           { label: "Shortlisted", href: "/students/shortlisted", icon: <Trophy size={20} /> },
+          { label: "Manage Students", href: "/users/create", icon: <Users size={20} /> },
         ]},
         { label: "Internships", items: [
           { label: "Current Openings", href: "/jobs", icon: <Briefcase size={20} /> },
