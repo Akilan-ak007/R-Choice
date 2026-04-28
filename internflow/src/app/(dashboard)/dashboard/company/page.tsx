@@ -12,14 +12,41 @@ export default async function DashboardCompanyPage() {
 
   if (!userId) return <div>Unauthorized</div>;
 
-  // Get the company's registration record
-  const [companyRecord] = await db
-    .select()
-    .from(companyRegistrations)
-    .where(eq(companyRegistrations.userId, userId))
-    .limit(1);
+  // Get the company's registration record based on role
+  let companyRecord = null;
+  let companyId = null;
+  
+  // First, check if the user has a companyId assigned directly (new unified method)
+  const [userRec] = await db.select({ companyId: users.companyId }).from(users).where(eq(users.id, userId)).limit(1);
+  
+  if (userRec?.companyId) {
+    companyId = userRec.companyId;
+  } else if (session?.user?.role === "company_staff") {
+    // Fallback: look up via companyStaff table (older method)
+    const [staffRec] = await db
+      .select({ companyId: companyStaff.companyId })
+      .from(companyStaff)
+      .where(eq(companyStaff.userId, userId))
+      .limit(1);
+    if (staffRec) companyId = staffRec.companyId;
+  } else {
+    // If CEO (role === 'company') and no users.companyId, look up by userId
+    const [rec] = await db
+      .select({ id: companyRegistrations.id })
+      .from(companyRegistrations)
+      .where(eq(companyRegistrations.userId, userId))
+      .limit(1);
+    companyId = rec?.id;
+  }
 
-  const companyId = companyRecord?.id;
+  if (companyId) {
+    const [rec] = await db
+      .select()
+      .from(companyRegistrations)
+      .where(eq(companyRegistrations.id, companyId))
+      .limit(1);
+    companyRecord = rec;
+  }
 
   // Company specific stats
   // 1. Total jobs posted by this user/company

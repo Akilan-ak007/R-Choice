@@ -15,7 +15,7 @@ export async function createJobPosting(formData: FormData) {
   }
   
   const allowedRoles = [
-    "company", "tutor", "placement_coordinator", "hod", "dean", 
+    "company", "company_staff", "tutor", "placement_coordinator", "hod", "dean", 
     "placement_officer", "principal", "coe", "placement_head", "management_corporation"
   ];
   const role = session.user.role;

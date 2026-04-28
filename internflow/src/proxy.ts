@@ -49,6 +49,7 @@ const roleRoutes: Record<string, string[]> = {
     "/approvals",
     "/jobs",
     "/reports",
+    "/users",
   ],
   hod: [
     "/dashboard/staff",

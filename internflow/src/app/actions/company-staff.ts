@@ -50,7 +50,7 @@ export async function addCompanyStaff(formData: FormData) {
       .values({
         email,
         passwordHash,
-        role: "company",
+        role: "company_staff",
         firstName,
         lastName,
         phone: phone || null,
