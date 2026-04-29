@@ -332,13 +332,14 @@ export default function JobBoardClient({ jobs, interests, isStudent, appliedJobI
                   </div>
                 </div>
 
-                <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "var(--space-4)", display: "flex", justifyContent: "center" }}>
-                  {isStudent ? (
-                    <ApplyButton job={job} isApplied={appliedJobIds.includes(job.id)} />
-                  ) : (
-                    <Link href={`/jobs/${job.id}`} className="btn btn-outline" style={{ display: "flex", width: "100%", justifyContent: "center", gap: "8px" }}>
-                      View Details
-                    </Link>
+                <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "var(--space-4)", display: "flex", justifyContent: "center", gap: "12px" }}>
+                  <Link href={`/jobs/${job.id}`} className="btn btn-outline" style={{ flex: 1, display: "flex", justifyContent: "center", gap: "8px" }}>
+                    View Details
+                  </Link>
+                  {isStudent && (
+                    <div style={{ flex: 1 }}>
+                      <ApplyButton job={job} isApplied={appliedJobIds.includes(job.id)} />
+                    </div>
                   )}
                 </div>
               </div>

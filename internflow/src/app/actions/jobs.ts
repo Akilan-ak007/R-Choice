@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { jobPostings, users, auditLogs, deviceTokens, companyRegistrations } from "@/lib/db/schema";
+import { jobPostings, users, auditLogs, deviceTokens, companyRegistrations, notifications } from "@/lib/db/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sanitize, sanitizeOptional, validateDate, ValidationError } from "@/lib/validation";
@@ -143,7 +143,6 @@ export async function createJobPosting(formData: FormData) {
 }
 
 
-import { notifications } from "@/lib/db/schema";
 import { sendMobilePush } from "@/lib/notifications";
 
 export async function updateJobStatus(jobId: string, action: "approve" | "reject") {
@@ -179,53 +178,51 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
        return { error: "You do not have permission to approve this job at its current stage." };
     }
     
-    await db.transaction(async (tx) => {
-      await tx.update(jobPostings)
-        .set({ 
-          status: newStatus as any,
-          verifiedBy: session.user.id,
-          verifiedByRole: role,
-          verifiedAt: new Date()
-        })
-        .where(eq(jobPostings.id, jobId));
+    await db.update(jobPostings)
+      .set({ 
+        status: newStatus as any,
+        verifiedBy: session.user.id,
+        verifiedByRole: role,
+        verifiedAt: new Date()
+      })
+      .where(eq(jobPostings.id, jobId));
 
-      if (newStatus === "approved") {
-        const [job] = await tx.select().from(jobPostings).where(eq(jobPostings.id, jobId)).limit(1);
-        
-        // 1. Notify Admins
-        const notifyRoles = ["placement_officer"] as const;
-        const targetAdmins = await tx.select().from(users).where(inArray(users.role, notifyRoles));
-        
-        if (targetAdmins.length > 0) {
-          await tx.insert(notifications).values(
-            targetAdmins.map(admin => ({
-              userId: admin.id,
-              type: "system",
-              title: "New Job Approved",
-              message: `Job ${job?.title} is now active.`,
-              linkUrl: `/jobs`,
-            }))
-          );
-        }
-
-        // 2. Notify ALL Active Students via Push
-        const students = await tx.select({ id: users.id }).from(users).where(eq(users.role, "student"));
-        if (students.length > 0) {
-           await sendMobilePush(
-             "New Internship Available!",
-             `${job?.title} is now accepting applications. Check your dashboard!`,
-             students.map(s => s.id)
-           );
-        }
+    if (newStatus === "approved") {
+      const [updatedJob] = await db.select().from(jobPostings).where(eq(jobPostings.id, jobId)).limit(1);
+      
+      // 1. Notify Admins
+      const notifyRoles = ["placement_officer"] as const;
+      const targetAdmins = await db.select().from(users).where(inArray(users.role, notifyRoles));
+      
+      if (targetAdmins.length > 0) {
+        await db.insert(notifications).values(
+          targetAdmins.map(admin => ({
+            userId: admin.id,
+            type: "system",
+            title: "New Job Approved",
+            message: `Job ${updatedJob?.title} is now active.`,
+            linkUrl: `/jobs`,
+          }))
+        );
       }
 
-      await tx.insert(auditLogs).values({
-        userId: session.user.id,
-        action: `review_job_${action}`,
-        entityType: "job_posting",
-        entityId: jobId,
-        details: { newStatus },
-      });
+      // 2. Notify ALL Active Students via Push
+      const students = await db.select({ id: users.id }).from(users).where(eq(users.role, "student"));
+      if (students.length > 0) {
+         await sendMobilePush(
+           "New Internship Available!",
+           `${updatedJob?.title} is now accepting applications. Check your dashboard!`,
+           students.map(s => s.id)
+         );
+      }
+    }
+
+    await db.insert(auditLogs).values({
+      userId: session.user.id,
+      action: `review_job_${action}`,
+      entityType: "job_posting",
+      entityId: jobId,
+      details: { newStatus },
     });
 
     if (shouldNotify) {
@@ -269,9 +266,9 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
     revalidatePath("/approvals/jobs");
     revalidatePath("/jobs");
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to update job status:", error);
-    return { error: "Database error occurred" };
+    return { error: `Database error occurred: ${error.message || String(error)}` };
   }
 }
 
@@ -365,8 +362,8 @@ export async function deleteJobPosting(jobId: string) {
        return { error: "You can only delete jobs belonging to your company" };
     }
     
-    if (job.status !== "draft" && job.status !== "rejected") {
-      return { error: "Only draft or rejected jobs can be deleted" };
+    if (job.status !== "draft" && job.status !== "rejected" && job.status !== "pending_mcr_approval" && job.status !== "pending_review") {
+      return { error: "Only draft, rejected, or pending jobs can be deleted" };
     }
 
     await db.delete(jobPostings).where(eq(jobPostings.id, jobId));

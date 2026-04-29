@@ -73,7 +73,7 @@ export default function SelectionResultsSection({ results }: { results: Selectio
                 <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <Building2 size={12} /> {r.companyName || "Company"}
                 </span>
-                <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span suppressHydrationWarning style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <Calendar size={12} /> {r.updatedAt ? new Date(r.updatedAt).toLocaleDateString() : "N/A"}
                 </span>
               </div>

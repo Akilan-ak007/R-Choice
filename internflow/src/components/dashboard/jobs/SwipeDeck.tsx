@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
 import { MapPin, Building2, Briefcase, X, Check, SearchX } from "lucide-react";
 import ApplyButton from "@/app/(dashboard)/jobs/ApplyButton";
+import Link from "next/link";
 
 type SwipeJob = {
   id: string;
@@ -112,16 +113,18 @@ function SwipeCard({ job, index, onSwipe, isStudent, isApplied }: { job: SwipeJo
             >
               <X size={20} /> Pass
             </button>
-            {isStudent ? (
-              <div style={{ flex: 1 }}>
-                <ApplyButton job={job} isApplied={isApplied} />
+            <Link 
+              href={`/jobs/${job.id}`}
+              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "16px", borderRadius: "12px", background: isStudent ? "var(--bg-hover)" : "var(--color-primary)", color: isStudent ? "var(--text-primary)" : "white", textDecoration: "none", fontWeight: "bold", fontSize: "1rem" }}
+            >
+              View Details
+            </Link>
+            {isStudent && (
+              <div style={{ flex: 1, display: "flex", alignItems: "stretch" }}>
+                <div style={{ width: "100%", '& > button': { height: '100%' } } as React.CSSProperties}>
+                  <ApplyButton job={job} isApplied={isApplied} />
+                </div>
               </div>
-            ) : (
-              <button 
-                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "16px", borderRadius: "12px", background: "var(--color-primary)", color: "white", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "1.1rem" }}
-              >
-                View Details
-              </button>
             )}
             <button 
               onClick={() => onSwipe(job.id, "right")}

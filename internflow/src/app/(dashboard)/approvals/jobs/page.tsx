@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { Building2 } from "lucide-react";
 import JobApprovalActions from "./JobApprovalActions";
 
+export const dynamic = "force-dynamic";
 export default async function JobApprovalsPage() {
   const session = await auth();
   if (!session?.user?.id) {

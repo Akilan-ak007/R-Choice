@@ -7,6 +7,8 @@ import { studentJobInterests, studentProfiles, jobApplications, jobPostings, com
 import { eq, desc } from "drizzle-orm";
 import SelectionResultsSection from "./SelectionResultsSection";
 
+export const dynamic = "force-dynamic";
+
 export default async function JobBoardPage() {
   const session = await auth();
   if (!session?.user?.id) {

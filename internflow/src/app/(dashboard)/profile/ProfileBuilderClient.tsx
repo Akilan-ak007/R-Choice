@@ -64,6 +64,7 @@ type ProfileData = {
   school?: string | null;
   course?: string | null;
   program?: string | null;
+  programType?: string | null;
   batchStartYear?: string | number | null;
   batchEndYear?: string | number | null;
   cgpa?: string | number | null;
@@ -326,6 +327,7 @@ export default function ProfileBuilderClient({ initialData, initialLinks = [], c
           school: data.school || "",
           course: data.course || "",
           program: data.program || "",
+          programType: data.programType || undefined,
           batchStartYear: data.batchStartYear ? Number(data.batchStartYear) : undefined,
           batchEndYear: data.batchEndYear ? Number(data.batchEndYear) : undefined,
           cgpa: data.cgpa?.toString() || "",
