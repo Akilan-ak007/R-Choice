@@ -21,7 +21,7 @@ async function ensureStudentProfile(userId: string): Promise<string> {
   
   const [newProfile] = await db.insert(studentProfiles).values({
     userId,
-    registerNo: "",
+    registerNo: `TMP-${userId.substring(0, 8)}`,
     department: "",
     year: 1,
     section: "",
@@ -114,7 +114,7 @@ export async function saveBasicProfile(formData: {
         school: formData.school || null,
         course: formData.course || null,
         program: formData.program || null,
-        programType: formData.program || null,
+        programType: formData.programType || null,
         batchStartYear: formData.batchStartYear || null,
         batchEndYear: formData.batchEndYear || null,
         cgpa: cgpaVal,
@@ -135,7 +135,7 @@ export async function saveBasicProfile(formData: {
         school: formData.school || null,
         course: formData.course || null,
         program: formData.program || null,
-        programType: formData.program || null,
+        programType: formData.programType || null,
         batchStartYear: formData.batchStartYear || null,
         batchEndYear: formData.batchEndYear || null,
         cgpa: cgpaVal,

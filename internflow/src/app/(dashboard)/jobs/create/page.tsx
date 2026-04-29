@@ -7,6 +7,49 @@ import Link from "next/link";
 import { createJobPosting } from "@/app/actions/jobs";
 import { toast } from "sonner";
 
+function TagInput({ label, tags, input, setInput, onAdd, onRemove, placeholder }: {
+  label: string; tags: string[]; input: string; setInput: (v: string) => void;
+  onAdd: () => void; onRemove: (i: number) => void; placeholder: string;
+}) {
+  return (
+    <div className="input-group" style={{ gridColumn: "1 / -1" }}>
+      <label>{label}</label>
+      <div style={{ display: "flex", gap: "8px" }}>
+        <input
+          className="input-field"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onAdd(); } }}
+          placeholder={placeholder}
+          style={{ flex: 1 }}
+        />
+        <button type="button" onClick={onAdd} className="btn btn-outline" style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>
+          <Plus size={14} /> Add
+        </button>
+      </div>
+      {tags.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
+          {tags.map((tag, i) => (
+            <span key={i} style={{
+              display: "inline-flex", alignItems: "center", gap: "6px",
+              background: "var(--primary-light)", color: "var(--primary-color)",
+              padding: "4px 10px", borderRadius: "16px", fontSize: "0.8125rem", fontWeight: 500,
+            }}>
+              {tag}
+              <button type="button" onClick={() => onRemove(i)} style={{
+                background: "none", border: "none", color: "inherit", cursor: "pointer", padding: 0,
+                display: "flex", alignItems: "center",
+              }}>
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CreateJobPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -91,48 +134,7 @@ export default function CreateJobPage() {
     margin: 0,
   };
 
-  function TagInput({ label, tags, input, setInput, onAdd, onRemove, placeholder }: {
-    label: string; tags: string[]; input: string; setInput: (v: string) => void;
-    onAdd: () => void; onRemove: (i: number) => void; placeholder: string;
-  }) {
-    return (
-      <div className="input-group" style={{ gridColumn: "1 / -1" }}>
-        <label>{label}</label>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <input
-            className="input-field"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onAdd(); } }}
-            placeholder={placeholder}
-            style={{ flex: 1 }}
-          />
-          <button type="button" onClick={onAdd} className="btn btn-outline" style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>
-            <Plus size={14} /> Add
-          </button>
-        </div>
-        {tags.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
-            {tags.map((tag, i) => (
-              <span key={i} style={{
-                display: "inline-flex", alignItems: "center", gap: "6px",
-                background: "var(--primary-light)", color: "var(--primary-color)",
-                padding: "4px 10px", borderRadius: "16px", fontSize: "0.8125rem", fontWeight: 500,
-              }}>
-                {tag}
-                <button type="button" onClick={() => onRemove(i)} style={{
-                  background: "none", border: "none", color: "inherit", cursor: "pointer", padding: 0,
-                  display: "flex", alignItems: "center",
-                }}>
-                  <X size={12} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
+
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: "900px", margin: "0 auto" }}>
