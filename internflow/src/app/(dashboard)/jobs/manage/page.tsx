@@ -78,9 +78,10 @@ export default async function ManageJobsPage() {
                 <button className="btn btn-ghost" style={{ padding: "8px" }} title="Edit Posting">
                   <Edit size={16} />
                 </button>
-                {(job.status === "draft" || job.status === "rejected") && (
+                {/* Only restrict active/approved jobs if needed, but since we allow it in actions for draft/rejected/pending, let's keep it consistent or just allow the server action to reject invalid states. Actually, let's explicitly show it for allowed states. */}
+                {(job.status === "draft" || job.status === "rejected" || job.status === "pending_mcr_approval" || job.status === "pending_review") && (
                   <form action={deleteJobPosting.bind(null, job.id) as any}>
-                    <button type="submit" className="btn btn-ghost" style={{ padding: "8px", color: "var(--color-danger)" }} title="Delete Draft/Rejected Job">
+                    <button type="submit" className="btn btn-ghost" style={{ padding: "8px", color: "var(--color-danger)" }} title="Delete Job Posting">
                       <Trash2 size={16} />
                     </button>
                   </form>

@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { jobPostings, users, auditLogs, deviceTokens, companyRegistrations } from "@/lib/db/schema";
+import { jobPostings, users, auditLogs, deviceTokens, companyRegistrations, notifications } from "@/lib/db/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sanitize, sanitizeOptional, validateDate, ValidationError } from "@/lib/validation";
@@ -143,7 +143,6 @@ export async function createJobPosting(formData: FormData) {
 }
 
 
-import { notifications } from "@/lib/db/schema";
 import { sendMobilePush } from "@/lib/notifications";
 
 export async function updateJobStatus(jobId: string, action: "approve" | "reject") {
@@ -365,8 +364,8 @@ export async function deleteJobPosting(jobId: string) {
        return { error: "You can only delete jobs belonging to your company" };
     }
     
-    if (job.status !== "draft" && job.status !== "rejected") {
-      return { error: "Only draft or rejected jobs can be deleted" };
+    if (job.status !== "draft" && job.status !== "rejected" && job.status !== "pending_mcr_approval" && job.status !== "pending_review") {
+      return { error: "Only draft, rejected, or pending jobs can be deleted" };
     }
 
     await db.delete(jobPostings).where(eq(jobPostings.id, jobId));
