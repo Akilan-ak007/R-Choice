@@ -9,6 +9,39 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 /**
+ * Resolve the company registration for the current user.
+ * Uses the same multi-path lookup as the company dashboard page:
+ *   1. users.companyId (set during companyReview approval)
+ *   2. companyRegistrations.userId (set during mcr/companyReview approval)
+ */
+async function resolveCompanyRegistration(userId: string) {
+  // Path 1: Check if users.companyId is set (points to companyRegistrations.id)
+  const [userRec] = await db
+    .select({ companyId: users.companyId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (userRec?.companyId) {
+    const [reg] = await db
+      .select()
+      .from(companyRegistrations)
+      .where(eq(companyRegistrations.id, userRec.companyId))
+      .limit(1);
+    if (reg) return reg;
+  }
+
+  // Path 2: Fallback to companyRegistrations.userId
+  const [reg] = await db
+    .select()
+    .from(companyRegistrations)
+    .where(eq(companyRegistrations.userId, userId))
+    .limit(1);
+
+  return reg || null;
+}
+
+/**
  * Add a staff member to the company.
  * Only the company CEO (company role user linked to the registration) can add staff.
  */
@@ -31,11 +64,7 @@ export async function addCompanyStaff(formData: FormData) {
   const lastName = lastNameParts.join(" ") || " ";
 
   try {
-    const [company] = await db
-      .select()
-      .from(companyRegistrations)
-      .where(eq(companyRegistrations.userId, session.user.id))
-      .limit(1);
+    const company = await resolveCompanyRegistration(session.user.id);
 
     if (!company) {
       return { error: "No company registration found for this account." };
@@ -54,6 +83,7 @@ export async function addCompanyStaff(formData: FormData) {
         firstName,
         lastName,
         phone: phone || null,
+        companyId: company.id,
       })
       .returning({ id: users.id });
 
@@ -86,11 +116,7 @@ export async function removeCompanyStaff(staffId: string) {
   }
 
   try {
-    const [company] = await db
-      .select()
-      .from(companyRegistrations)
-      .where(eq(companyRegistrations.userId, session.user.id))
-      .limit(1);
+    const company = await resolveCompanyRegistration(session.user.id);
 
     if (!company) {
       return { error: "No company registration found." };

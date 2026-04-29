@@ -68,6 +68,7 @@ export async function approveCompanyRegistration(companyId: string) {
         role: "company",
         firstName: company.ceoName || "CEO",
         lastName: company.companyLegalName,
+        companyId: company.id,
       })
       .returning({ id: users.id });
 
