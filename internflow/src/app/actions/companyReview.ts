@@ -24,11 +24,10 @@ export async function reviewCompany(formData: FormData) {
   else if (action === "info_requested") newStatus = "info_requested";
 
   try {
-    await db.transaction(async (tx) => {
-      const [reg] = await tx.select().from(companyRegistrations).where(eq(companyRegistrations.id, id)).limit(1);
+    const [reg] = await db.select().from(companyRegistrations).where(eq(companyRegistrations.id, id)).limit(1);
       if (!reg) throw new Error("Registration not found");
 
-      await tx.update(companyRegistrations).set({
+      await db.update(companyRegistrations).set({
         status: newStatus,
         reviewedBy: session.user.id,
         reviewedByRole: role,
@@ -45,11 +44,11 @@ export async function reviewCompany(formData: FormData) {
         const passwordHash = await bcrypt.hash(rawPassword, 12);
 
         // Optional: Ensure email is unique
-        const [existing] = await tx.select().from(users).where(eq(users.email, founderEmail)).limit(1);
+        const [existing] = await db.select().from(users).where(eq(users.email, founderEmail)).limit(1);
         let createdUserId = existing?.id;
 
         if (!existing) {
-          const [newUser] = await tx.insert(users).values({
+          const [newUser] = await db.insert(users).values({
             email: founderEmail,
             passwordHash,
             firstName: founderName,
@@ -66,14 +65,14 @@ export async function reviewCompany(formData: FormData) {
           }
         }
 
-        await tx.update(companyRegistrations).set({ userId: createdUserId }).where(eq(companyRegistrations.id, id));
+        await db.update(companyRegistrations).set({ userId: createdUserId }).where(eq(companyRegistrations.id, id));
 
         // 2. Dispatch Notifications to specified roles
         const notifyRoles = ["placement_officer", "dean", "hod", "coe", "principal"] as const;
-        const targetAdmins = await tx.select().from(users).where(inArray(users.role, notifyRoles));
+        const targetAdmins = await db.select().from(users).where(inArray(users.role, notifyRoles));
         
         if (targetAdmins.length > 0) {
-          await tx.insert(notifications).values(
+          await db.insert(notifications).values(
             targetAdmins.map(admin => ({
               userId: admin.id,
               type: "system",
@@ -85,14 +84,13 @@ export async function reviewCompany(formData: FormData) {
         }
       }
 
-      await tx.insert(auditLogs).values({
+      await db.insert(auditLogs).values({
         userId: session.user.id,
         action: `review_company`,
         entityType: "company_registration",
         entityId: id,
         details: { newStatus, comment },
       });
-    });
 
     revalidatePath("/companies/review");
     return { success: true };

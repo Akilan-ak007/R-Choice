@@ -57,8 +57,7 @@ export async function submitCompanyRegistration(token: string, formData: FormDat
     const authenticityConfirmed = rawData.authenticityConfirmed === "true";
 
     // Insert Registration
-    await db.transaction(async (tx) => {
-      await tx.insert(companyRegistrations).values({
+    await db.insert(companyRegistrations).values({
         companyLegalName,
         website,
         hrEmail,
@@ -83,10 +82,9 @@ export async function submitCompanyRegistration(token: string, formData: FormDat
       });
 
       // Mark token as used
-      await tx.update(companyInvitations)
+      await db.update(companyInvitations)
         .set({ isUsed: true })
         .where(eq(companyInvitations.id, invitation.id));
-    });
 
     return { success: true };
   } catch (error: unknown) {
