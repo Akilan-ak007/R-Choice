@@ -13,7 +13,7 @@ test.describe("Internship Applications Pipeline", () => {
     await expect(page.getByText(/Track your internship approval status/i)).toBeVisible();
 
     const applicationCards = page.getByRole("heading", { level: 3 });
-    const newRequestLink = page.getByRole("link", { name: /new external od request/i });
+    const newRequestLink = page.getByRole("link", { name: /external od request/i });
 
     if ((await applicationCards.count()) > 0) {
       await expect(applicationCards.first()).toBeVisible();
