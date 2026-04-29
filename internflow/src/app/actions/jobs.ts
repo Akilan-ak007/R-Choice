@@ -125,8 +125,7 @@ export async function createJobPosting(formData: FormData) {
       contactPersons: contactPersons,
       requiredSkills: mandatorySkills.length > 0 ? mandatorySkills : [],
       status: (role === "management_corporation") ? "approved" 
-            : (role === "placement_officer") ? "pending_mcr_approval" 
-            : "pending_review",
+            : "pending_mcr_approval",
     });
 
     revalidatePath("/jobs");
@@ -194,7 +193,7 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
         const [job] = await tx.select().from(jobPostings).where(eq(jobPostings.id, jobId)).limit(1);
         
         // 1. Notify Admins
-        const notifyRoles = ["placement_officer", "hod", "coe", "principal"] as const;
+        const notifyRoles = ["placement_officer"] as const;
         const targetAdmins = await tx.select().from(users).where(inArray(users.role, notifyRoles));
         
         if (targetAdmins.length > 0) {
@@ -230,13 +229,13 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
     });
 
     if (shouldNotify) {
-      // Find devices for authorities (po, ph, coe, principal)
+      // Find devices for authorities (po)
       const authorityTokens = await db
         .select({ token: deviceTokens.token })
         .from(deviceTokens)
         .innerJoin(users, eq(deviceTokens.userId, users.id))
         .where(
-          inArray(users.role, ["placement_officer", "placement_head", "coe", "principal"])
+          inArray(users.role, ["placement_officer"])
         );
       
       const authorityTokenList = authorityTokens.map(t => t.token);

@@ -40,7 +40,7 @@ async function approveRow(page: Page, row: Locator) {
 
 test.describe("Full Pipeline - Mega Flow", () => {
 
-  test("Company Registers -> PO Approves Job -> Student Applies -> Full Hierarchy Approves", async ({ page }) => {
+  test("Company Registers -> MCR Approves Job -> Student Applies -> Full Hierarchy Approves", async ({ page }) => {
     test.setTimeout(300000); // 5 minutes timeout due to many context switches
     let companyLoginEmail = companyEmail;
 
@@ -75,8 +75,8 @@ test.describe("Full Pipeline - Mega Flow", () => {
 
     await page.context().clearCookies(); // Log out
 
-    // --- 3. Placement Officer Approves Job ---
-    await loginAs(page, TEST_ACCOUNTS.placementOfficer, "Placement Officer", /.*dashboard.*/);
+    // --- 3. MCR Approves Job ---
+    await loginAs(page, TEST_ACCOUNTS.mcr, "MCR", /.*dashboard.*/);
     await page.goto("/approvals/jobs");
     const pendingJobCard = page.locator(".card").filter({ hasText: jobTitle }).first();
     await expect(pendingJobCard).toBeVisible();
