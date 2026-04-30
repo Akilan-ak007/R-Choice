@@ -27,7 +27,7 @@ type ApplicantRow = {
 
 type FullProfile = {
   user: { avatarUrl?: string | null; firstName: string; lastName: string; email: string; phone?: string | null };
-  profile: { department?: string | null; year?: number | null; section?: string | null; professionalSummary?: string | null; cgpa?: string | null; profileCompletionScore?: number | null };
+  profile: { registerNo?: string | null; school?: string | null; program?: string | null; programType?: string | null; course?: string | null; department?: string | null; year?: number | null; section?: string | null; batchStartYear?: number | null; batchEndYear?: number | null; dob?: string | null; professionalSummary?: string | null; cgpa?: string | null; profileCompletionScore?: number | null; resumeUrl?: string | null; githubLink?: string | null; linkedinLink?: string | null; portfolioUrl?: string | null };
   education: Array<{ degree: string; fieldOfStudy?: string | null; institution: string; startYear?: number | null; endYear?: number | null; score?: string | null }>;
   projects: Array<{ title: string; projectUrl?: string | null; description?: string | null }>;
   skills: Array<{ skillName: string; skillType?: string | null; proficiency?: string | null }>;
@@ -62,10 +62,10 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
   };
 
 
-  const toggleSelect = (studentId: string) => {
+  const toggleSelect = (applicationId: string) => {
     const newSet = new Set(selectedIds);
-    if (newSet.has(studentId)) newSet.delete(studentId);
-    else newSet.add(studentId);
+    if (newSet.has(applicationId)) newSet.delete(applicationId);
+    else newSet.add(applicationId);
     setSelectedIds(newSet);
   };
 
@@ -89,22 +89,16 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
       return;
     }
 
-    // Since a company might have multiple jobs, we group by jobId
-    // Or we assume this is grouped correctly. For simplicity here, we assume one bulk action per job.
-    // Let's get the job ID from the first selected applicant
-    const firstSelected = applicants.find(a => selectedIds.has(a.id));
-    if (!firstSelected) return;
-
     setIsPosting(true);
     toast.loading("Sending Verification Emails to shortlisted candidates...", { id: "posting-results" });
     
-    // Group selected students by Job ID
+    // Group selected applicationIds by Job ID, resolving student IDs
     const groupedByJob: Record<string, string[]> = {};
-    Array.from(selectedIds).forEach(studentId => {
-      const app = applicants.find(a => a.id === studentId);
+    Array.from(selectedIds).forEach(appId => {
+      const app = applicants.find(a => a.applicationId === appId);
       if (app) {
         if (!groupedByJob[app.jobId]) groupedByJob[app.jobId] = [];
-        groupedByJob[app.jobId].push(app.id); 
+        groupedByJob[app.jobId].push(app.id); // pass studentId to server action
       }
     });
 
@@ -120,8 +114,8 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
 
       if (overallSuccess) {
         toast.success(`Verification Emails sent to ${selectedIds.size} candidates!`, { id: "posting-results" });
-        // Update local state directly
-        setApplicants(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, status: "selected" } : a));
+        // Update local state directly — match by applicationId
+        setApplicants(prev => prev.map(a => selectedIds.has(a.applicationId) ? { ...a, status: "selected" } : a));
         setSelectedIds(new Set());
       }
     } catch {
@@ -177,12 +171,12 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
                 </tr>
               ) : (
                 applicants.map((app) => (
-                  <tr key={`${app.id}-${app.jobId}`} style={{ borderBottom: "1px solid var(--border-color)", transition: "background-color 0.2s", backgroundColor: selectedIds.has(app.id) ? "rgba(99,102,241,0.06)" : app.status === "shortlisted" ? "rgba(245,158,11,0.04)" : "transparent" }}>
+                  <tr key={app.applicationId} style={{ borderBottom: "1px solid var(--border-color)", transition: "background-color 0.2s", backgroundColor: selectedIds.has(app.applicationId) ? "rgba(99,102,241,0.06)" : app.status === "shortlisted" ? "rgba(245,158,11,0.04)" : "transparent" }}>
                     <td style={{ padding: "var(--space-4)" }}>
                       <input 
                         type="checkbox" 
-                        checked={selectedIds.has(app.id)} 
-                        onChange={() => toggleSelect(app.id)}
+                        checked={selectedIds.has(app.applicationId)} 
+                        onChange={() => toggleSelect(app.applicationId)}
                         disabled={app.status === "selected"}
                         style={{ cursor: app.status === "selected" ? "not-allowed" : "pointer" }}
                       />
@@ -285,41 +279,69 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
             ) : profileData ? (
               <div>
                 {/* Header */}
-                <div style={{ background: "linear-gradient(135deg, var(--bg-hover) 0%, transparent 100%)", padding: "24px 32px", borderBottom: "1px solid var(--border-color)" }}>
+                <div style={{ background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)", padding: "28px 32px", color: "white" }}>
                   <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap" }}>
-                    <div style={{ width: "70px", height: "70px", borderRadius: "50%", overflow: "hidden", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {profileData.user.avatarUrl ? <Image src={profileData.user.avatarUrl} alt="Avatar" width={70} height={70} style={{width: "100%", height: "100%", objectFit:"cover"}} /> : <UserCircle size={40} color="var(--text-secondary)" />}
+                    <div style={{ width: "80px", height: "80px", borderRadius: "50%", overflow: "hidden", border: "3px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {profileData.user.avatarUrl ? <Image src={profileData.user.avatarUrl} alt="Avatar" width={80} height={80} style={{width: "100%", height: "100%", objectFit:"cover"}} /> : <UserCircle size={48} color="rgba(255,255,255,0.8)" />}
                     </div>
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <h2 style={{ fontSize: "1.5rem", margin: 0, fontWeight: 700 }}>{profileData.user.firstName} {profileData.user.lastName}</h2>
-                      <p style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", margin: "4px 0 0 0" }}>{profileData.profile.department} (Year {profileData.profile.year}, Sec {profileData.profile.section})</p>
-                      <div style={{ display: "flex", gap: "16px", marginTop: "8px", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>📧 {profileData.user.email}</span>
-                        {profileData.user.phone && <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>📱 {profileData.user.phone}</span>}
+                      {profileData.profile.registerNo && <p style={{ fontSize: "0.85rem", opacity: 0.9, margin: "4px 0 0 0" }}>Reg: {profileData.profile.registerNo}</p>}
+                      <p style={{ fontSize: "0.9rem", opacity: 0.85, margin: "2px 0 0 0" }}>
+                        {profileData.profile.department}{profileData.profile.section ? ` • Sec ${profileData.profile.section}` : ""}{profileData.profile.year ? ` • Year ${profileData.profile.year}` : ""}
+                      </p>
+                      <div style={{ display: "flex", gap: "16px", marginTop: "8px", flexWrap: "wrap", fontSize: "0.85rem", opacity: 0.9 }}>
+                        <span>📧 {profileData.user.email}</span>
+                        {profileData.user.phone && <span>📱 {profileData.user.phone}</span>}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="profile-grid" style={{ padding: "32px" }}>
+                {/* Stats Bar */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "1px", background: "var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
+                  {[
+                    { label: "CGPA", value: profileData.profile.cgpa || "N/A", color: "var(--primary-color)" },
+                    { label: "Profile Score", value: `${profileData.profile.profileCompletionScore || 0}/100`, color: "#10b981" },
+                    { label: "Program", value: profileData.profile.programType || profileData.profile.program || "—", color: "#8b5cf6" },
+                    { label: "Batch", value: profileData.profile.batchStartYear && profileData.profile.batchEndYear ? `${profileData.profile.batchStartYear}-${profileData.profile.batchEndYear}` : "—", color: "#f59e0b" },
+                  ].map((stat, i) => (
+                    <div key={i} style={{ background: "var(--bg-primary)", padding: "14px 16px", textAlign: "center" }}>
+                      <div style={{ fontSize: "1.1rem", fontWeight: 700, color: stat.color }}>{stat.value}</div>
+                      <div style={{ fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-secondary)", marginTop: "2px" }}>{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Quick Links */}
+                {(profileData.profile.resumeUrl || profileData.profile.githubLink || profileData.profile.linkedinLink || profileData.profile.portfolioUrl) && (
+                  <div style={{ display: "flex", gap: "8px", padding: "12px 32px", flexWrap: "wrap", borderBottom: "1px solid var(--border-color)" }}>
+                    {profileData.profile.resumeUrl && <a href={profileData.profile.resumeUrl} target="_blank" rel="noreferrer" style={{ fontSize: "0.8rem", padding: "4px 12px", borderRadius: "20px", background: "rgba(99,102,241,0.1)", color: "#6366f1", textDecoration: "none", fontWeight: 500, display: "flex", alignItems: "center", gap: "4px" }}><Download size={12} /> Resume</a>}
+                    {profileData.profile.githubLink && <a href={profileData.profile.githubLink} target="_blank" rel="noreferrer" style={{ fontSize: "0.8rem", padding: "4px 12px", borderRadius: "20px", background: "var(--bg-hover)", color: "var(--text-primary)", textDecoration: "none", fontWeight: 500 }}>GitHub</a>}
+                    {profileData.profile.linkedinLink && <a href={profileData.profile.linkedinLink} target="_blank" rel="noreferrer" style={{ fontSize: "0.8rem", padding: "4px 12px", borderRadius: "20px", background: "var(--bg-hover)", color: "var(--text-primary)", textDecoration: "none", fontWeight: 500 }}>LinkedIn</a>}
+                    {profileData.profile.portfolioUrl && <a href={profileData.profile.portfolioUrl} target="_blank" rel="noreferrer" style={{ fontSize: "0.8rem", padding: "4px 12px", borderRadius: "20px", background: "var(--bg-hover)", color: "var(--text-primary)", textDecoration: "none", fontWeight: 500 }}>Portfolio</a>}
+                  </div>
+                )}
+
+                <div className="profile-grid" style={{ padding: "24px 32px 32px" }}>
                   {/* Left Column */}
                   <div>
                     {profileData.profile.professionalSummary && (
-                      <div style={{ marginBottom: "32px" }}>
-                        <h3 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "1.25rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px" }}><Briefcase size={20} /> Professional Summary</h3>
-                        <p style={{ lineHeight: 1.6, color: "var(--text-secondary)", fontSize: "0.9375rem" }}>{profileData.profile.professionalSummary}</p>
+                      <div style={{ marginBottom: "28px" }}>
+                        <h3 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "1.1rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "12px" }}><Briefcase size={18} /> About</h3>
+                        <p style={{ lineHeight: 1.6, color: "var(--text-secondary)", fontSize: "0.9rem" }}>{profileData.profile.professionalSummary}</p>
                       </div>
                     )}
 
                     {profileData.education.length > 0 && (
-                      <div style={{ marginBottom: "32px" }}>
-                        <h3 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "1.25rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px" }}><GraduationCap size={20} /> Education</h3>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                      <div style={{ marginBottom: "28px" }}>
+                        <h3 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "1.1rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "12px" }}><GraduationCap size={18} /> Education</h3>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                           {profileData.education.map((edu, i: number) => (
-                            <div key={i} style={{ background: "var(--bg-elevated)", padding: "16px", borderRadius: "8px" }}>
-                              <h4 style={{ margin: "0 0 4px 0", fontSize: "1rem" }}>{edu.degree} {edu.fieldOfStudy ? `in ${edu.fieldOfStudy}` : ""}</h4>
-                              <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.875rem" }}>{edu.institution}</p>
-                              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "12px", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                            <div key={i} style={{ background: "var(--bg-elevated)", padding: "14px", borderRadius: "8px" }}>
+                              <h4 style={{ margin: "0 0 4px 0", fontSize: "0.95rem" }}>{edu.degree} {edu.fieldOfStudy ? `in ${edu.fieldOfStudy}` : ""}</h4>
+                              <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem" }}>{edu.institution}</p>
+                              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                                 <span>{edu.startYear} - {edu.endYear || "Present"}</span>
                                 {edu.score && <span style={{ fontWeight: 600, color: "var(--primary-color)" }}>Score: {edu.score}</span>}
                               </div>
@@ -330,16 +352,16 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
                     )}
 
                     {profileData.projects.length > 0 && (
-                      <div style={{ marginBottom: "32px" }}>
-                        <h3 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "1.25rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px" }}><Code size={20} /> Projects</h3>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                      <div style={{ marginBottom: "28px" }}>
+                        <h3 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "1.1rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "12px" }}><Code size={18} /> Projects</h3>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                           {profileData.projects.map((proj, i: number) => (
-                            <div key={i} style={{ background: "var(--bg-elevated)", padding: "16px", borderRadius: "8px", borderLeft: "3px solid var(--primary-color)" }}>
-                              <h4 style={{ margin: "0 0 8px 0", fontSize: "1rem", display: "flex", justifyContent: "space-between" }}>
+                            <div key={i} style={{ background: "var(--bg-elevated)", padding: "14px", borderRadius: "8px", borderLeft: "3px solid var(--primary-color)" }}>
+                              <h4 style={{ margin: "0 0 6px 0", fontSize: "0.95rem", display: "flex", justifyContent: "space-between" }}>
                                 {proj.title}
-                                {proj.projectUrl && <a href={proj.projectUrl} target="_blank" rel="noreferrer" style={{ color: "var(--primary-color)" }}><ExternalLink size={16} /></a>}
+                                {proj.projectUrl && <a href={proj.projectUrl} target="_blank" rel="noreferrer" style={{ color: "var(--primary-color)" }}><ExternalLink size={14} /></a>}
                               </h4>
-                              <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.875rem", lineHeight: 1.5 }}>{proj.description}</p>
+                              <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem", lineHeight: 1.5 }}>{proj.description}</p>
                             </div>
                           ))}
                         </div>
@@ -349,24 +371,12 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
 
                   {/* Right Column */}
                   <div>
-                    <div style={{ background: "var(--bg-elevated)", padding: "20px", borderRadius: "12px", marginBottom: "24px" }}>
-                      <h4 style={{ fontSize: "0.875rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-secondary)", margin: "0 0 16px 0" }}>Metrics</h4>
-                      <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "12px", borderBottom: "1px solid var(--border-color)", marginBottom: "12px" }}>
-                        <span style={{ color: "var(--text-secondary)" }}>CGPA</span>
-                        <span style={{ fontWeight: 700, fontSize: "1.125rem", color: "var(--primary-color)" }}>{profileData.profile.cgpa || "N/A"}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ color: "var(--text-secondary)" }}>Profile Score</span>
-                        <span style={{ fontWeight: 700, fontSize: "1.125rem" }}>{profileData.profile.profileCompletionScore}/100</span>
-                      </div>
-                    </div>
-
                     {profileData.skills.length > 0 && (
                       <div style={{ marginBottom: "24px" }}>
-                        <h4 style={{ fontSize: "0.875rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-secondary)", margin: "0 0 12px 0", display: "flex", alignItems: "center", gap: "6px" }}><Target size={16} /> Skills</h4>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                        <h4 style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-secondary)", margin: "0 0 12px 0", display: "flex", alignItems: "center", gap: "6px" }}><Target size={14} /> Skills</h4>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                           {profileData.skills.map((skill, i: number) => (
-                            <span key={i} style={{ background: "var(--bg-hover)", padding: "4px 10px", borderRadius: "20px", fontSize: "0.8125rem", fontWeight: 500 }}>
+                            <span key={i} style={{ background: skill.skillType === "hard" ? "rgba(99,102,241,0.1)" : skill.skillType === "language" ? "rgba(245,158,11,0.1)" : "rgba(16,185,129,0.1)", color: skill.skillType === "hard" ? "#6366f1" : skill.skillType === "language" ? "#f59e0b" : "#10b981", padding: "4px 10px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 500 }}>
                               {skill.skillName}
                             </span>
                           ))}
@@ -376,12 +386,12 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
 
                     {profileData.certs.length > 0 && (
                       <div style={{ marginBottom: "24px" }}>
-                        <h4 style={{ fontSize: "0.875rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-secondary)", margin: "0 0 12px 0", display: "flex", alignItems: "center", gap: "6px" }}><Award size={16} /> Certifications</h4>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        <h4 style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-secondary)", margin: "0 0 12px 0", display: "flex", alignItems: "center", gap: "6px" }}><Award size={14} /> Certifications</h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                           {profileData.certs.map((cert, i: number) => (
-                            <div key={i} style={{ fontSize: "0.875rem" }}>
+                            <div key={i} style={{ fontSize: "0.85rem" }}>
                               <div style={{ fontWeight: 500 }}>{cert.name}</div>
-                              <div style={{ color: "var(--text-secondary)", fontSize: "0.8125rem", display: "flex", justifyContent: "space-between" }}>
+                              <div style={{ color: "var(--text-secondary)", fontSize: "0.75rem", display: "flex", justifyContent: "space-between" }}>
                                 <span>{cert.issuingOrg}</span>
                                 {cert.credentialUrl && <a href={cert.credentialUrl} target="_blank" rel="noreferrer" style={{ color: "var(--primary-color)" }}>Verify</a>}
                               </div>
@@ -393,15 +403,13 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
                     
                     {profileData.links.length > 0 && (
                       <div>
-                        <h4 style={{ fontSize: "0.875rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-secondary)", margin: "0 0 12px 0" }}>External Links</h4>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                          {profileData.links
-                            .filter((link) => Boolean(link.url))
-                            .map((link, i: number) => (
-                              <a key={i} href={link.url || undefined} target="_blank" rel="noreferrer" style={{ fontSize: "0.875rem", color: "var(--primary-color)", display: "flex", gap: "8px", alignItems: "center", textDecoration: "none" }}>
-                                <ExternalLink size={14} /> {link.platform}
-                              </a>
-                            ))}
+                        <h4 style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-secondary)", margin: "0 0 12px 0" }}>Links</h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          {profileData.links.filter((link) => Boolean(link.url)).map((link, i: number) => (
+                            <a key={i} href={link.url || undefined} target="_blank" rel="noreferrer" style={{ fontSize: "0.85rem", color: "var(--primary-color)", display: "flex", gap: "6px", alignItems: "center", textDecoration: "none" }}>
+                              <ExternalLink size={12} /> {link.title || link.platform}
+                            </a>
+                          ))}
                         </div>
                       </div>
                     )}

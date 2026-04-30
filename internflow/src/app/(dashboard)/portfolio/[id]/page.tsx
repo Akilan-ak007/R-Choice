@@ -44,7 +44,7 @@ export default async function PortfolioPage(props: { params: Promise<{ id: strin
   // Access control: self, authorities, or companies only
   const isSelf = viewerId === studentUserId;
   const isAuthority = AUTHORITY_ROLES.includes(viewerRole);
-  const isCompany = viewerRole === "company";
+  const isCompany = viewerRole === "company" || viewerRole === "company_staff";
 
   if (!isSelf && !isAuthority && !isCompany) {
     return (

@@ -398,3 +398,85 @@ export async function verifyAndInitializeOD(applicationId: string, code: string,
     return { error: err instanceof Error ? err.message : "Failed to verify and initialize OD." };
   }
 }
+
+export async function raiseODForStudents(studentIds: string[]) {
+  const session = await auth();
+  if (!session?.user?.id) return { error: "Unauthorized" };
+  const role = session.user.role;
+
+  if (role !== "placement_officer") {
+    return { error: "Only placement officers can raise OD requests." };
+  }
+
+  try {
+    let notifiedCount = 0;
+
+    for (const studentId of studentIds) {
+      // Check if student already has an OD request (internship request)
+      const [existingOD] = await db.select({ id: internshipRequests.id })
+        .from(internshipRequests)
+        .where(eq(internshipRequests.studentId, studentId))
+        .limit(1);
+
+      if (existingOD) continue; // Already in OD flow, skip
+
+      // Check if student has a selected application that's not verified
+      const [selectedApp] = await db.select({
+        id: jobApplications.id,
+        isVerified: jobApplications.isVerified,
+        jobId: jobApplications.jobId,
+      })
+        .from(jobApplications)
+        .where(and(eq(jobApplications.studentId, studentId), eq(jobApplications.status, "selected")))
+        .limit(1);
+
+      if (!selectedApp) continue;
+
+      // Get student info
+      const [student] = await db.select({ firstName: users.firstName, lastName: users.lastName })
+        .from(users).where(eq(users.id, studentId)).limit(1);
+
+      const studentName = student ? `${student.firstName} ${student.lastName}` : "Student";
+
+      // Notify the student to process OD
+      await db.insert(notifications).values({
+        userId: studentId,
+        type: "od_reminder",
+        title: "🎓 Action Required: Start Your OD Process",
+        message: `The Placement Officer has reviewed your selection and is requesting you to begin the OD approval process. Please go to your dashboard, enter your verification code, and submit the OD request.`,
+        linkUrl: "/dashboard/student",
+      });
+
+      // Notify all authorities about the PO's action
+      try {
+        const approvers = await getApproversForStudent(studentId);
+        const authorityMsg = `Placement Officer has raised OD for ${studentName}. The student has been notified to begin the approval process.`;
+        const notifyAlerts: Array<typeof notifications.$inferInsert> = [];
+
+        if (approvers.tutorId) notifyAlerts.push({ userId: approvers.tutorId, type: "od_reminder", title: "OD Raised by PO", message: authorityMsg, linkUrl: "/approvals" });
+        if (approvers.placementCoordinatorId) notifyAlerts.push({ userId: approvers.placementCoordinatorId, type: "od_reminder", title: "OD Raised by PO", message: authorityMsg, linkUrl: "/approvals" });
+        if (approvers.hodId) notifyAlerts.push({ userId: approvers.hodId, type: "od_reminder", title: "OD Raised by PO", message: authorityMsg, linkUrl: "/approvals" });
+
+        if (notifyAlerts.length > 0) {
+          await db.insert(notifications).values(notifyAlerts);
+        }
+      } catch (authErr) {
+        console.error("Failed to notify authorities for OD raise:", authErr);
+      }
+
+      notifiedCount++;
+    }
+
+    revalidatePath("/jobs");
+    revalidatePath("/approvals");
+
+    if (notifiedCount === 0) {
+      return { success: true, message: "All selected students already have OD requests in progress." };
+    }
+
+    return { success: true, message: `OD process raised for ${notifiedCount} student(s). They have been notified.` };
+  } catch (err: unknown) {
+    console.error("Raise OD error:", err);
+    return { error: err instanceof Error ? err.message : "Failed to raise OD." };
+  }
+}

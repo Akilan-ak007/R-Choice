@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Trophy, Filter, Calendar, Building2, User, CheckCircle2, Clock, AlertCircle, ShieldCheck } from "lucide-react";
+import { Trophy, Filter, Calendar, Building2, User, CheckCircle2, Clock, AlertCircle, ShieldCheck, SendHorizonal, Loader2 } from "lucide-react";
+import { raiseODForStudents } from "@/app/actions/applications";
+import { toast } from "sonner";
+import Link from "next/link";
 
 interface SelectionResult {
   id: string;
@@ -34,8 +37,10 @@ function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: stri
 
 export default function SelectionResultsSection({ results, odStatusMap = {}, viewerRole }: { results: SelectionResult[]; odStatusMap?: Record<string, string>; viewerRole?: string }) {
   const [filter, setFilter] = useState<"recent" | "all">("recent");
+  const [isRaisingOD, setIsRaisingOD] = useState(false);
 
   const isAuthority = ["tutor", "placement_coordinator", "hod", "dean", "placement_officer", "principal", "placement_head", "coe"].includes(viewerRole || "");
+  const isPO = viewerRole === "placement_officer";
 
   const filteredResults = useMemo(() => {
     if (filter === "recent") {
@@ -46,6 +51,30 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
     return results;
   }, [results, filter]);
 
+  // Students who haven't started OD yet (no odStatus and not verified)
+  const unverifiedStudents = filteredResults.filter(r => !r.isVerified && !odStatusMap[r.studentId]);
+
+  const handleRaiseOD = async () => {
+    if (unverifiedStudents.length === 0) {
+      toast.info("All students have already started the OD process.");
+      return;
+    }
+
+    setIsRaisingOD(true);
+    try {
+      const studentIds = unverifiedStudents.map(r => r.studentId);
+      const res = await raiseODForStudents(studentIds);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success(res.message || "OD process raised successfully!");
+      }
+    } catch {
+      toast.error("Failed to raise OD.");
+    }
+    setIsRaisingOD(false);
+  };
+
   if (results.length === 0) return null;
 
   return (
@@ -54,7 +83,32 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
         <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: "10px", fontSize: "1.25rem" }}>
           <Trophy size={22} color="#f59e0b" /> Selection Results
         </h2>
-        <div style={{ display: "flex", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          {/* Raise OD CTA — visible only to Placement Officer */}
+          {isPO && unverifiedStudents.length > 0 && (
+            <button
+              onClick={handleRaiseOD}
+              disabled={isRaisingOD}
+              className="btn"
+              style={{
+                borderRadius: "100px",
+                padding: "8px 20px",
+                fontSize: "0.8rem",
+                height: "auto",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                color: "white",
+                border: "none",
+                fontWeight: 600,
+                boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
+              }}
+            >
+              {isRaisingOD ? <Loader2 size={14} className="animate-spin" /> : <SendHorizonal size={14} />}
+              Raise OD ({unverifiedStudents.length})
+            </button>
+          )}
           {(["recent", "all"] as const).map(f => (
             <button
               key={f}
@@ -85,7 +139,9 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
                   <User size={18} color="#f59e0b" />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontWeight: 600, margin: 0, fontSize: "0.95rem" }}>{r.studentFirstName} {r.studentLastName}</p>
+                  <Link href={`/portfolio/${r.studentId}`} style={{ fontWeight: 600, margin: 0, fontSize: "0.95rem", color: "var(--primary-color)", textDecoration: "none" }}>
+                    {r.studentFirstName} {r.studentLastName}
+                  </Link>
                   <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: 0 }}>{r.jobTitle}</p>
                 </div>
               </div>
