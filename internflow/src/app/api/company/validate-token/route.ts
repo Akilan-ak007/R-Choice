@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { companyRegistrationLinks } from "@/lib/db/schema";
+import { companyRegistrationLinks, companyInvitations } from "@/lib/db/schema";
 import { eq, and, gt } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // 1. Check Admin generated links
     const [link] = await db
       .select()
       .from(companyRegistrationLinks)
@@ -23,7 +24,24 @@ export async function GET(req: NextRequest) {
       )
       .limit(1);
 
-    return NextResponse.json({ valid: !!link });
+    if (link) return NextResponse.json({ valid: true });
+
+    // 2. Check MCR invitations
+    const [invitation] = await db
+      .select()
+      .from(companyInvitations)
+      .where(
+        and(
+          eq(companyInvitations.token, token),
+          eq(companyInvitations.isUsed, false),
+          gt(companyInvitations.expiresAt, new Date())
+        )
+      )
+      .limit(1);
+
+    if (invitation) return NextResponse.json({ valid: true });
+
+    return NextResponse.json({ valid: false });
   } catch (error) {
     console.error("Token validation error:", error);
     return NextResponse.json({ valid: false, error: "Validation failed" }, { status: 500 });

@@ -16,9 +16,10 @@ interface SelectionResult {
   appliedAt: Date | null;
   updatedAt: Date | null;
   isVerified?: boolean | null;
+  verificationCode?: string | null;
 }
 
-function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: string | undefined) {
+function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: string | undefined, hasCode: boolean | undefined) {
   if (odStatus === "approved") {
     return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(34, 197, 94, 0.12)", color: "#22c55e" }}><CheckCircle2 size={11} /> OD Approved</span>;
   }
@@ -31,6 +32,9 @@ function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: stri
   }
   if (isVerified) {
     return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(16, 185, 129, 0.12)", color: "#10b981" }}><ShieldCheck size={11} /> Verified</span>;
+  }
+  if (hasCode) {
+    return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(168, 85, 247, 0.12)", color: "#a855f7" }}><SendHorizonal size={11} /> Code Sent</span>;
   }
   return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}><Clock size={11} /> Awaiting Verification</span>;
 }
@@ -51,8 +55,8 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
     return results;
   }, [results, filter]);
 
-  // Students who haven't started OD yet (no odStatus and not verified)
-  const unverifiedStudents = filteredResults.filter(r => !r.isVerified && !odStatusMap[r.studentId]);
+  // Students who haven't had a verification code generated yet and haven't started OD
+  const unverifiedStudents = filteredResults.filter(r => !r.isVerified && !odStatusMap[r.studentId] && !r.verificationCode);
 
   const handleRaiseOD = async () => {
     if (unverifiedStudents.length === 0) {
@@ -149,7 +153,7 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
               {/* OD Status Badge — visible to authorities and the student themselves */}
               {(isAuthority || viewerRole === "student") && (
                 <div style={{ marginBottom: "8px" }}>
-                  {getODStatusBadge(r.isVerified, odStatusMap[r.studentId])}
+                  {getODStatusBadge(r.isVerified, odStatusMap[r.studentId], !!r.verificationCode)}
                 </div>
               )}
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { companyRegistrationLinks, companyRegistrations, notifications, users } from "@/lib/db/schema";
-import { eq, and, gt, inArray } from "drizzle-orm";
+import { companyRegistrationLinks, companyInvitations, companyRegistrations, notifications, users } from "@/lib/db/schema";
+import { eq, and, gt } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +12,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing registration token" }, { status: 400 });
     }
 
-    // Validate token
+    let isInvitation = false;
+    let linkId = null;
+
+    // 1. Check Admin generated links
     const [link] = await db
       .select()
       .from(companyRegistrationLinks)
@@ -25,7 +28,29 @@ export async function POST(req: NextRequest) {
       )
       .limit(1);
 
-    if (!link) {
+    if (link) {
+      linkId = link.id;
+    } else {
+      // 2. Check MCR invitations
+      const [invitation] = await db
+        .select()
+        .from(companyInvitations)
+        .where(
+          and(
+            eq(companyInvitations.token, token),
+            eq(companyInvitations.isUsed, false),
+            gt(companyInvitations.expiresAt, new Date())
+          )
+        )
+        .limit(1);
+
+      if (invitation) {
+        linkId = invitation.id;
+        isInvitation = true;
+      }
+    }
+
+    if (!linkId) {
       return NextResponse.json({ error: "Invalid or expired registration link" }, { status: 400 });
     }
 
@@ -37,8 +62,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 1. Insert company registration
-    await db.insert(companyRegistrations).values({
+    // Insert company registration
+    const [insertedCompany] = await db.insert(companyRegistrations).values({
       companyLegalName: companyData.companyLegalName,
       brandName: companyData.brandName || null,
       companyDescription: companyData.companyDescription || null,
@@ -73,13 +98,20 @@ export async function POST(req: NextRequest) {
       generalTcAccepted: companyData.generalTcAccepted || false,
       generalTcAcceptedAt: companyData.generalTcAccepted ? new Date() : null,
       status: "pending",
-    });
+    }).returning();
 
-    // 2. Mark token as used
-    await db
-      .update(companyRegistrationLinks)
-      .set({ isUsed: true })
-      .where(eq(companyRegistrationLinks.id, link.id));
+    // Mark token as used
+    if (isInvitation) {
+      await db
+        .update(companyInvitations)
+        .set({ isUsed: true })
+        .where(eq(companyInvitations.id, linkId));
+    } else {
+      await db
+        .update(companyRegistrationLinks)
+        .set({ isUsed: true, usedByCompanyId: insertedCompany.id })
+        .where(eq(companyRegistrationLinks.id, linkId));
+    }
 
     // 3. Notify MCR users that a new registration is pending
     const mcrUsers = await db

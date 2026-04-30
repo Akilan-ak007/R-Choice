@@ -48,6 +48,7 @@ export default async function JobBoardPage() {
       appliedAt: jobApplications.appliedAt,
       updatedAt: jobApplications.updatedAt,
       isVerified: jobApplications.isVerified,
+      verificationCode: jobApplications.verificationCode,
     })
     .from(jobApplications)
     .innerJoin(users, eq(jobApplications.studentId, users.id))
