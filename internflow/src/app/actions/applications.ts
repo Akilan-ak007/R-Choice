@@ -399,9 +399,10 @@ export async function raiseODForStudents(studentIds: string[]) {
 
       if (!selectedApp) continue;
       if (selectedApp.isVerified) continue; // Already verified
+      if (selectedApp.verificationCode) continue; // Skip if already has code
 
-      // Generate verification code if not already set
-      const code = selectedApp.verificationCode || Math.floor(100000 + Math.random() * 900000).toString();
+      // Generate verification code
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
 
       // Set the verification code on the application
       await db.update(jobApplications)

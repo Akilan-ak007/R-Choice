@@ -55,18 +55,20 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
     return results;
   }, [results, filter]);
 
-  // Students who haven't had a verification code generated yet and haven't started OD
-  const unverifiedStudents = filteredResults.filter(r => !r.isVerified && !odStatusMap[r.studentId] && !r.verificationCode);
+  // Students who haven't started OD yet (no odStatus and not verified)
+  const studentsNeedingOD = filteredResults.filter(r => !r.isVerified && !odStatusMap[r.studentId]);
+  // Students who actually need a code (haven't received one yet)
+  const studentsNeedingCode = studentsNeedingOD.filter(r => !r.verificationCode);
 
   const handleRaiseOD = async () => {
-    if (unverifiedStudents.length === 0) {
-      toast.info("All students have already started the OD process.");
+    if (studentsNeedingCode.length === 0) {
+      toast.info("All students have already received their codes or started OD.");
       return;
     }
 
     setIsRaisingOD(true);
     try {
-      const studentIds = unverifiedStudents.map(r => r.studentId);
+      const studentIds = studentsNeedingCode.map(r => r.studentId);
       const res = await raiseODForStudents(studentIds);
       if (res.error) {
         toast.error(res.error);
@@ -89,10 +91,10 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
         </h2>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
           {/* Raise OD CTA — visible only to Placement Officer */}
-          {isPO && unverifiedStudents.length > 0 && (
+          {isPO && studentsNeedingOD.length > 0 && (
             <button
               onClick={handleRaiseOD}
-              disabled={isRaisingOD}
+              disabled={isRaisingOD || studentsNeedingCode.length === 0}
               className="btn"
               style={{
                 borderRadius: "100px",
@@ -102,15 +104,16 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
-                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                color: "white",
+                background: studentsNeedingCode.length === 0 ? "var(--bg-hover)" : "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                color: studentsNeedingCode.length === 0 ? "var(--text-secondary)" : "white",
                 border: "none",
                 fontWeight: 600,
-                boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
+                boxShadow: studentsNeedingCode.length === 0 ? "none" : "0 2px 8px rgba(99, 102, 241, 0.3)",
+                cursor: studentsNeedingCode.length === 0 ? "not-allowed" : "pointer"
               }}
             >
               {isRaisingOD ? <Loader2 size={14} className="animate-spin" /> : <SendHorizonal size={14} />}
-              Raise OD ({unverifiedStudents.length})
+              {studentsNeedingCode.length === 0 ? "Codes Sent" : `Raise OD (${studentsNeedingCode.length})`}
             </button>
           )}
           {(["recent", "all"] as const).map(f => (
