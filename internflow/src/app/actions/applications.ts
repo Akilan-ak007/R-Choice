@@ -246,7 +246,6 @@ export async function postCompanyResults(jobId: string, selectedStudentIds: stri
   }
 
   try {
-    // Get Job Details
     const [job] = await db.select({
       role: jobPostings.title,
       companyId: jobPostings.companyId,
@@ -265,74 +264,41 @@ export async function postCompanyResults(jobId: string, selectedStudentIds: stri
     }
 
     const [company] = job.companyId
-      ? await db.select({
-          name: companyRegistrations.companyLegalName
-        }).from(companyRegistrations).where(eq(companyRegistrations.id, job.companyId)).limit(1)
+      ? await db.select({ name: companyRegistrations.companyLegalName })
+          .from(companyRegistrations).where(eq(companyRegistrations.id, job.companyId)).limit(1)
       : [{ name: "Unknown Company" }];
 
-    for (const studentId of selectedStudentIds) {
-      // Generate 6 digit code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const studentNames: string[] = [];
 
-      // Update the application status
+    for (const studentId of selectedStudentIds) {
+      // Mark as selected — do NOT generate verification code yet (PO does that via Raise OD)
       await db.update(jobApplications)
-        .set({ status: "selected", verificationCode: code, updatedAt: new Date() })
+        .set({ status: "selected", updatedAt: new Date() })
         .where(and(eq(jobApplications.jobId, jobId), eq(jobApplications.studentId, studentId)));
 
-      // Build email
-      const [student] = await db.select().from(users).where(eq(users.id, studentId)).limit(1);
-      
-      let emailTask: { email: string; name: string; phone: string | null; tutorId: null; pcId: null; hodId: null } | null = null;
-      if (student && student.email) {
-        // Notify Student Directly
-        await db.insert(notifications).values({
-          userId: student.id,
-          type: "selection",
-          title: "Internship Selection Result",
-          message: `Congratulations! You have been selected by ${company?.name}. Please check your email for the verification code to start your OD request.`,
-          linkUrl: "/dashboard/student"
-        });
-        
-        emailTask = { email: student.email, name: `${student.firstName} ${student.lastName}`, phone: student.phone, tutorId: null, pcId: null, hodId: null };
-      }
-
-        // Side-effects (Email API requests) fire only if the atomic db transaction succeeds
-      if (emailTask) {
-        await sendCompanyResultEmail(
-          emailTask.email,
-          emailTask.name,
-          company?.name || "The Company",
-          job?.role || "Internship",
-          code
-        );
-
-        if (emailTask.phone) {
-          await sendVerificationSMS(emailTask.phone, code);
-        }
-
-        // Fetch authorities outside logic if needed
-        try {
-          const approvers = await getApproversForStudent(studentId);
-          const notifyAlerts: Array<typeof notifications.$inferInsert> = [];
-          const pushMessage = `A student in your section (${emailTask.name}) was just shortlisted for ${job?.role || "an internship"} by ${company?.name}. Expect an OD request soon.`;
-          
-          if (approvers.tutorId) notifyAlerts.push({ userId: approvers.tutorId, type: "application_update", title: "Student Shortlisted", message: pushMessage, linkUrl: "/approvals" });
-          if (approvers.placementCoordinatorId) notifyAlerts.push({ userId: approvers.placementCoordinatorId, type: "application_update", title: "Student Shortlisted", message: pushMessage, linkUrl: "/approvals" });
-          if (approvers.hodId) notifyAlerts.push({ userId: approvers.hodId, type: "application_update", title: "Student Shortlisted", message: pushMessage, linkUrl: "/approvals" });
-
-          if (notifyAlerts.length > 0) {
-            // We do this outside the main transaction to not fail the core selection if this fails
-            await db.insert(notifications).values(notifyAlerts);
-          }
-        } catch (authErr) {
-          console.error("Failed to lookup authorities for notifications, skipping...", authErr);
-        }
-      }
+      const [student] = await db.select({ firstName: users.firstName, lastName: users.lastName })
+        .from(users).where(eq(users.id, studentId)).limit(1);
+      if (student) studentNames.push(`${student.firstName} ${student.lastName}`);
     }
 
-    // Optional: Alert the hierarchy that a result was posted (can be global or mapped to selected students)
-    
+    // Notify all Placement Officers to review the shortlist
+    try {
+      const poUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "placement_officer"));
+      const poMsg = `${company?.name || "A company"} has shortlisted ${selectedStudentIds.length} student(s) for "${job.role}": ${studentNames.join(", ")}. Please review on the Jobs page and click "Raise OD" when ready.`;
+
+      for (const po of poUsers) {
+        await db.insert(notifications).values({
+          userId: po.id, type: "selection",
+          title: "📋 Company Shortlist — Review Required",
+          message: poMsg, linkUrl: "/jobs",
+        });
+      }
+    } catch (poErr) {
+      console.error("Failed to notify PO:", poErr);
+    }
+
     revalidatePath("/dashboard/company/applicants");
+    revalidatePath("/jobs");
     return { success: true };
   } catch (err: unknown) {
     console.error("Post results error:", err);
@@ -412,45 +378,75 @@ export async function raiseODForStudents(studentIds: string[]) {
     let notifiedCount = 0;
 
     for (const studentId of studentIds) {
-      // Check if student already has an OD request (internship request)
+      // Check if student already has an OD request
       const [existingOD] = await db.select({ id: internshipRequests.id })
         .from(internshipRequests)
         .where(eq(internshipRequests.studentId, studentId))
         .limit(1);
 
-      if (existingOD) continue; // Already in OD flow, skip
+      if (existingOD) continue;
 
-      // Check if student has a selected application that's not verified
+      // Get the selected application
       const [selectedApp] = await db.select({
         id: jobApplications.id,
         isVerified: jobApplications.isVerified,
         jobId: jobApplications.jobId,
+        verificationCode: jobApplications.verificationCode,
       })
         .from(jobApplications)
         .where(and(eq(jobApplications.studentId, studentId), eq(jobApplications.status, "selected")))
         .limit(1);
 
       if (!selectedApp) continue;
+      if (selectedApp.isVerified) continue; // Already verified
 
-      // Get student info
-      const [student] = await db.select({ firstName: users.firstName, lastName: users.lastName })
-        .from(users).where(eq(users.id, studentId)).limit(1);
+      // Generate verification code if not already set
+      const code = selectedApp.verificationCode || Math.floor(100000 + Math.random() * 900000).toString();
 
-      const studentName = student ? `${student.firstName} ${student.lastName}` : "Student";
+      // Set the verification code on the application
+      await db.update(jobApplications)
+        .set({ verificationCode: code, updatedAt: new Date() })
+        .where(eq(jobApplications.id, selectedApp.id));
 
-      // Notify the student to process OD
+      // Get student + job + company info for the email
+      const [student] = await db.select().from(users).where(eq(users.id, studentId)).limit(1);
+      if (!student) continue;
+
+      const studentName = `${student.firstName} ${student.lastName}`;
+
+      const [job] = await db.select({ title: jobPostings.title, companyId: jobPostings.companyId })
+        .from(jobPostings).where(eq(jobPostings.id, selectedApp.jobId)).limit(1);
+
+      let companyName = "The Company";
+      if (job?.companyId) {
+        const [company] = await db.select({ name: companyRegistrations.companyLegalName })
+          .from(companyRegistrations).where(eq(companyRegistrations.id, job.companyId)).limit(1);
+        if (company) companyName = company.name;
+      }
+
+      // Notify student with selection result + verification code
       await db.insert(notifications).values({
         userId: studentId,
-        type: "od_reminder",
-        title: "🎓 Action Required: Start Your OD Process",
-        message: `The Placement Officer has reviewed your selection and is requesting you to begin the OD approval process. Please go to your dashboard, enter your verification code, and submit the OD request.`,
+        type: "selection",
+        title: "🎉 You've Been Selected — Start Your OD Process",
+        message: `Congratulations! You have been selected by ${companyName} for "${job?.title || "Internship"}". The Placement Officer has approved your selection. Please check your email for the verification code and submit your OD request from your dashboard.`,
         linkUrl: "/dashboard/student",
       });
 
-      // Notify all authorities about the PO's action
+      // Send verification email + SMS
+      try {
+        await sendCompanyResultEmail(student.email, studentName, companyName, job?.title || "Internship", code);
+        if (student.phone) {
+          await sendVerificationSMS(student.phone, code);
+        }
+      } catch (mailErr) {
+        console.error("Failed to send verification email/SMS:", mailErr);
+      }
+
+      // Notify authorities
       try {
         const approvers = await getApproversForStudent(studentId);
-        const authorityMsg = `Placement Officer has raised OD for ${studentName}. The student has been notified to begin the approval process.`;
+        const authorityMsg = `Placement Officer has raised OD for ${studentName} (selected by ${companyName}). The student has been sent a verification code to begin the approval process.`;
         const notifyAlerts: Array<typeof notifications.$inferInsert> = [];
 
         if (approvers.tutorId) notifyAlerts.push({ userId: approvers.tutorId, type: "od_reminder", title: "OD Raised by PO", message: authorityMsg, linkUrl: "/approvals" });

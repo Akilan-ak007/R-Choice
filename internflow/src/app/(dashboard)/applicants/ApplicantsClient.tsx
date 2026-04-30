@@ -90,7 +90,7 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
     }
 
     setIsPosting(true);
-    toast.loading("Sending Verification Emails to shortlisted candidates...", { id: "posting-results" });
+    toast.loading("Posting shortlist results to Placement Officer...", { id: "posting-results" });
     
     // Group selected applicationIds by Job ID, resolving student IDs
     const groupedByJob: Record<string, string[]> = {};
@@ -113,7 +113,7 @@ export default function ApplicantsClient({ initialApplicants, currentPage = 1, t
       }
 
       if (overallSuccess) {
-        toast.success(`Verification Emails sent to ${selectedIds.size} candidates!`, { id: "posting-results" });
+        toast.success(`Shortlist posted! ${selectedIds.size} candidate(s) sent to PO for review.`, { id: "posting-results" });
         // Update local state directly — match by applicationId
         setApplicants(prev => prev.map(a => selectedIds.has(a.applicationId) ? { ...a, status: "selected" } : a));
         setSelectedIds(new Set());
