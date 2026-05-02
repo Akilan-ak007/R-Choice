@@ -4,6 +4,30 @@ import { redirect } from "next/navigation";
 import { CheckCircle } from "lucide-react";
 import ApprovalActions from "./ApprovalActions";
 
+function getSlaState(enteredAt: Date | string | null | undefined, slaHours: number | null | undefined) {
+  if (!enteredAt) return null;
+
+  const slaWindow = slaHours || 6;
+  const elapsedHours = (Date.now() - new Date(enteredAt).getTime()) / (1000 * 60 * 60);
+  const roundedElapsed = Math.max(0, Math.floor(elapsedHours));
+
+  if (elapsedHours >= slaWindow) {
+    return {
+      overdue: true,
+      text: `SLA overdue by ${Math.max(1, roundedElapsed - slaWindow)}h`,
+      tone: "#dc2626",
+      background: "rgba(239, 68, 68, 0.08)",
+    };
+  }
+
+  return {
+    overdue: false,
+    text: `Within SLA ${roundedElapsed}h / ${slaWindow}h`,
+    tone: "var(--text-secondary)",
+    background: "var(--bg-hover)",
+  };
+}
+
 export default async function ApprovalsPage(props: { searchParams: Promise<{ status?: string; page?: string }> }) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -70,8 +94,8 @@ export default async function ApprovalsPage(props: { searchParams: Promise<{ sta
             <tbody>
               {requests.map((req) => {
                 const lastActionDate = new Date(req.updatedAt || req.submittedAt!);
-                const daysPending = Math.floor((Date.now() - lastActionDate.getTime()) / (1000 * 60 * 60 * 24));
-                const isDelayed = daysPending >= 3;
+                const requestStatus = req.status ?? "pending";
+                const slaState = getSlaState(req.currentTierEnteredAt, req.currentTierSlaHours);
                 
                 return (
                   <tr key={req.id}>
@@ -81,20 +105,35 @@ export default async function ApprovalsPage(props: { searchParams: Promise<{ sta
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                         <span className="badge">
-                          {(req.status || "").replace("pending_", "").replace("_", " ")}
+                          {requestStatus.replace("pending_", "").replace("_", " ")}
                         </span>
                         {filterStatus === "pending" || filterStatus === "downward" ? (
-                          <span style={{ fontSize: "0.75rem", color: isDelayed ? "var(--color-danger)" : "var(--text-secondary)", fontWeight: isDelayed ? 600 : 400 }}>
-                            {daysPending === 0 ? "Pending since today" : `Pending for ${daysPending} day${daysPending === 1 ? '' : 's'}`}
+                          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                            Last activity {lastActionDate.toLocaleDateString()}
+                          </span>
+                        ) : null}
+                        {filterStatus === "pending" && slaState ? (
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              color: slaState.tone,
+                              background: slaState.background,
+                              borderRadius: "999px",
+                              padding: "3px 8px",
+                              width: "fit-content",
+                              fontWeight: slaState.overdue ? 700 : 500,
+                            }}
+                          >
+                            {slaState.text}
                           </span>
                         ) : null}
                       </div>
                     </td>
                     <td>{new Date(req.submittedAt!).toLocaleDateString()}</td>
                     <td>
-                      {req.status === "approved" || req.status === "rejected" ? (
+                      {requestStatus === "approved" || requestStatus === "rejected" ? (
                         <span style={{ color: "var(--text-secondary)", fontWeight: 500, fontSize: "0.875rem" }}>
-                          {req.status === "approved" ? "Processed" : "Declined"}
+                          {requestStatus === "approved" ? "Processed" : "Declined"}
                         </span>
                       ) : filterStatus === "downward" ? (
                         <span style={{ color: "var(--text-secondary)", fontWeight: 500, fontSize: "0.875rem" }}>

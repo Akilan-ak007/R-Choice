@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { internshipRequests, users, studentProfiles, approvalLogs, odForms } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 
 export async function generateODData(requestId: string) {

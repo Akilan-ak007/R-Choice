@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { companyRegistrationLinks, companyInvitations } from "@/lib/db/schema";
+import { companyRegistrationLinks, companyRegistrations } from "@/lib/db/schema";
 import { eq, and, gt } from "drizzle-orm";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { captureServerError } from "@/lib/observability";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -11,9 +13,23 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1. Check Admin generated links
+    const rateLimit = await enforceRateLimit({
+      namespace: "company-validate-token",
+      identifier: `${req.headers.get("x-forwarded-for") || "anonymous"}:${token}`,
+      limit: 40,
+      windowMs: 15 * 60 * 1000,
+    });
+
+    if (!rateLimit.success) {
+      return NextResponse.json({ valid: false, error: "Too many validation attempts" }, { status: 429 });
+    }
+
     const [link] = await db
-      .select()
+      .select({
+        id: companyRegistrationLinks.id,
+        isUsed: companyRegistrationLinks.isUsed,
+        usedByCompanyId: companyRegistrationLinks.usedByCompanyId,
+      })
       .from(companyRegistrationLinks)
       .where(
         and(
@@ -24,26 +40,63 @@ export async function GET(req: NextRequest) {
       )
       .limit(1);
 
-    if (link) return NextResponse.json({ valid: true });
+    if (!link || link.isUsed) {
+      return NextResponse.json({ valid: false });
+    }
 
-    // 2. Check MCR invitations
-    const [invitation] = await db
-      .select()
-      .from(companyInvitations)
-      .where(
-        and(
-          eq(companyInvitations.token, token),
-          eq(companyInvitations.isUsed, false),
-          gt(companyInvitations.expiresAt, new Date())
-        )
-      )
-      .limit(1);
+    const [company] = link.usedByCompanyId
+      ? await db
+          .select({
+            id: companyRegistrations.id,
+            companyLegalName: companyRegistrations.companyLegalName,
+            brandName: companyRegistrations.brandName,
+            companyDescription: companyRegistrations.companyDescription,
+            companyType: companyRegistrations.companyType,
+            industrySector: companyRegistrations.industrySector,
+            yearEstablished: companyRegistrations.yearEstablished,
+            companySize: companyRegistrations.companySize,
+            website: companyRegistrations.website,
+            address: companyRegistrations.address,
+            city: companyRegistrations.city,
+            state: companyRegistrations.state,
+            pinCode: companyRegistrations.pinCode,
+            hrName: companyRegistrations.hrName,
+            hrEmail: companyRegistrations.hrEmail,
+            hrPhone: companyRegistrations.hrPhone,
+            altPhone: companyRegistrations.altPhone,
+            gstNumber: companyRegistrations.gstNumber,
+            panNumber: companyRegistrations.panNumber,
+            cinLlpin: companyRegistrations.cinLlpin,
+            coi: companyRegistrations.coi,
+            ceoName: companyRegistrations.ceoName,
+            ceoDesignation: companyRegistrations.ceoDesignation,
+            ceoEmail: companyRegistrations.ceoEmail,
+            ceoPhone: companyRegistrations.ceoPhone,
+            ceoLinkedin: companyRegistrations.ceoLinkedin,
+            ceoPortfolio: companyRegistrations.ceoPortfolio,
+            internshipType: companyRegistrations.internshipType,
+            domains: companyRegistrations.domains,
+            duration: companyRegistrations.duration,
+            stipendRange: companyRegistrations.stipendRange,
+            hiringIntention: companyRegistrations.hiringIntention,
+            generalTcAccepted: companyRegistrations.generalTcAccepted,
+            status: companyRegistrations.status,
+            reviewComment: companyRegistrations.reviewComment,
+            reviewedAt: companyRegistrations.reviewedAt,
+          })
+          .from(companyRegistrations)
+          .where(eq(companyRegistrations.id, link.usedByCompanyId))
+          .limit(1)
+      : [];
 
-    if (invitation) return NextResponse.json({ valid: true });
-
-    return NextResponse.json({ valid: false });
+    return NextResponse.json({
+      valid: true,
+      company: company || null,
+    });
   } catch (error) {
-    console.error("Token validation error:", error);
+    captureServerError(error, {
+      scope: "GET /api/company/validate-token",
+    });
     return NextResponse.json({ valid: false, error: "Validation failed" }, { status: 500 });
   }
 }

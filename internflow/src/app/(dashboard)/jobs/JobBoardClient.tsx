@@ -2,13 +2,12 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { Search, MapPin, Building2, Calendar, Briefcase, Sparkles, Zap, Clock, AlertTriangle, Layers, Grid2x2, Banknote, Eye } from "lucide-react";
+import { Search, MapPin, Building2, Calendar, Briefcase, Sparkles, Zap, Clock, AlertTriangle, Layers, Grid2x2, Banknote } from "lucide-react";
 import ApplyButton from "./ApplyButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SwipeDeck } from "@/components/dashboard/jobs/SwipeDeck";
 import { CompanyMarquee } from "@/components/dashboard/jobs/CompanyMarquee";
 import { SalarySlider } from "@/components/dashboard/jobs/SalarySlider";
-import JobDetailModal from "./JobDetailModal";
 
 type JobCard = {
   id: string;
@@ -79,7 +78,6 @@ function OpportunityBadge({ type, ppo }: { type?: string, ppo?: boolean }) {
 
 export default function JobBoardClient({ jobs, interests, isStudent, appliedJobIds = [] }: { jobs: JobCard[]; interests: Interest[]; isStudent: boolean; appliedJobIds?: string[] }) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "swipe">("grid");
   const [minSalary, setMinSalary] = useState(0);
   const [activeFilter, setActiveFilter] = useState<"all" | "remote" | "onsite" | "paid" | "unpaid">("all");
@@ -222,7 +220,7 @@ export default function JobBoardClient({ jobs, interests, isStudent, appliedJobI
         />
       ) : viewMode === "swipe" ? (
         <div style={{ paddingBottom: "80px" }}>
-          <SwipeDeck jobs={sortedAndFilteredJobs} isStudent={isStudent} appliedJobIds={appliedJobIds} onViewDetails={(id) => setSelectedJobId(id)} />
+          <SwipeDeck jobs={sortedAndFilteredJobs} isStudent={isStudent} appliedJobIds={appliedJobIds} />
         </div>
       ) : (
         <div className="grid grid-2" style={{ gap: "var(--space-5)", paddingBottom: "80px" }}>
@@ -334,18 +332,18 @@ export default function JobBoardClient({ jobs, interests, isStudent, appliedJobI
                   </div>
                 </div>
 
-                <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "var(--space-4)", display: "flex", justifyContent: "center", gap: "12px" }}>
-                  <button
-                    onClick={() => setSelectedJobId(job.id)}
-                    className="btn btn-outline"
-                    style={{ flex: 1, display: "flex", justifyContent: "center", gap: "8px", alignItems: "center" }}
-                  >
-                    <Eye size={16} /> View Details
-                  </button>
-                  {isStudent && (
-                    <div style={{ flex: 1 }}>
+                <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "var(--space-4)", display: "flex", justifyContent: "center" }}>
+                  {isStudent ? (
+                    <div style={{ display: "flex", width: "100%", gap: "8px" }}>
+                      <Link href={`/jobs/${job.id}`} className="btn btn-outline" style={{ display: "flex", flex: 1, justifyContent: "center", gap: "8px" }}>
+                        View Details
+                      </Link>
                       <ApplyButton job={job} isApplied={appliedJobIds.includes(job.id)} />
                     </div>
+                  ) : (
+                    <Link href={`/jobs/${job.id}`} className="btn btn-outline" style={{ display: "flex", width: "100%", justifyContent: "center", gap: "8px" }}>
+                      View Details
+                    </Link>
                   )}
                 </div>
               </div>
@@ -360,19 +358,6 @@ export default function JobBoardClient({ jobs, interests, isStudent, appliedJobI
           50% { box-shadow: 0 0 0 3px rgba(225, 38, 28, 0.12); }
         }
       `}</style>
-
-      {selectedJobId && (
-        <JobDetailModal
-          jobId={selectedJobId}
-          isStudent={isStudent}
-          isApplied={appliedJobIds.includes(selectedJobId)}
-          onClose={() => setSelectedJobId(null)}
-          jobBasic={(() => {
-            const j = jobs.find(x => x.id === selectedJobId);
-            return { id: selectedJobId, title: j?.title || "", companyName: j?.companyName || null };
-          })()}
-        />
-      )}
     </>
   );
 }

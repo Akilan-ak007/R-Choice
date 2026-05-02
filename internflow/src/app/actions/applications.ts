@@ -2,9 +2,23 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { internshipRequests, externalInternshipDetails, jobApplications, jobPostings, companyRegistrations, users, notifications } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { sendCompanyResultEmail, sendVerificationSMS } from "@/lib/mail";
+import {
+  internshipRequests,
+  externalInternshipDetails,
+  jobApplications,
+  jobPostings,
+  companyRegistrations,
+  users,
+  notifications,
+  jobResultPublications,
+  odRaiseRequests,
+  approvalSlaSettings,
+  calendarEvents,
+  jobApplicationRoundProgress,
+  selectionProcessRounds,
+} from "@/lib/db/schema";
+import { eq, and, inArray, asc } from "drizzle-orm";
+import { sendCompanyResultEmail } from "@/lib/mail";
 import { getApproversForStudent } from "@/lib/db/queries/authority";
 import { revalidatePath } from "next/cache";
 import {
@@ -17,6 +31,19 @@ import {
   validateEnum,
   ValidationError,
 } from "@/lib/validation";
+import { getCompanyContextForUser } from "@/lib/company-context";
+import { syncSelectionRoundCalendarForJob } from "@/lib/calendar-sync";
+import { captureServerError, captureServerEvent } from "@/lib/observability";
+
+async function getDefaultOdSlaHours() {
+  const [setting] = await db
+    .select({ slaHours: approvalSlaSettings.slaHours })
+    .from(approvalSlaSettings)
+    .where(eq(approvalSlaSettings.scope, "default_od"))
+    .limit(1);
+
+  return setting?.slaHours || 6;
+}
 
 export async function submitInternshipRequest(formData: FormData) {
   const session = await auth();
@@ -119,7 +146,11 @@ export async function submitInternshipRequest(formData: FormData) {
     if (error instanceof ValidationError) {
       return { error: error.message };
     }
-    console.error("Application submission error:", error);
+    captureServerError(error, {
+      scope: "submitInternshipRequest",
+      actorId: userId,
+      actorRole: role,
+    });
     return { error: "Failed to submit application." };
   }
 }
@@ -159,6 +190,11 @@ export async function createPortalApplication(jobId: string) {
       status: "applied",
     });
 
+    captureServerEvent("job_application_created", {
+      jobId,
+      studentId: userId,
+    });
+
     // NOTE: For internal/portal applications, we do NOT create an internshipRequests
     // record here. The flow is: Student Applies → Company Shortlists → Company Posts
     // Results (sends verification code) → Student enters code → verifyAndInitializeOD
@@ -170,7 +206,11 @@ export async function createPortalApplication(jobId: string) {
     
     return { success: true };
   } catch (error: unknown) {
-    console.error("Portal apply error:", error);
+    captureServerError(error, {
+      scope: "createPortalApplication",
+      jobId,
+      studentId: userId,
+    });
     const msg = error instanceof Error ? error.message : "Failed to submit application.";
     return { error: msg };
   }
@@ -178,11 +218,8 @@ export async function createPortalApplication(jobId: string) {
 
 export async function shortlistApplicant(applicationId: string) {
   const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
-  const role = session.user.role;
-  
-  if (role !== "company" && role !== "company_staff") {
-    return { error: "Unauthorized. Only companies can shortlist applicants." };
+  if (!session?.user?.id) {
+    return { error: "Unauthorized. Only company-linked users can shortlist applicants." };
   }
 
   try {
@@ -199,16 +236,14 @@ export async function shortlistApplicant(applicationId: string) {
     if (!app) return { error: "Application not found." };
 
     // Verify the job belongs to this company
-    const [job] = await db.select({ postedBy: jobPostings.postedBy, companyId: jobPostings.companyId }).from(jobPostings).where(eq(jobPostings.id, app.jobId)).limit(1);
-    if (!job) return { error: "Job not found." };
-
-    const [currentUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-
-    if (role === "company_staff" && job.postedBy !== session.user.id) {
+    const [job] = await db
+      .select({ companyId: jobPostings.companyId })
+      .from(jobPostings)
+      .where(eq(jobPostings.id, app.jobId))
+      .limit(1);
+    const companyContext = await getCompanyContextForUser(session.user.id);
+    if (!job || !companyContext || job.companyId !== companyContext.companyId) {
       return { error: "You can only shortlist applicants for your own job postings." };
-    }
-    if (role === "company" && job.companyId !== currentUser?.companyId) {
-      return { error: "You can only shortlist applicants for your company's job postings." };
     }
 
     const newStatus = app.status === "shortlisted" ? "applied" : "shortlisted";
@@ -228,252 +263,644 @@ export async function shortlistApplicant(applicationId: string) {
       });
     }
 
+    await syncSelectionRoundCalendarForJob(app.jobId);
+
+    captureServerEvent("job_application_shortlist_toggled", {
+      applicationId,
+      jobId: app.jobId,
+      studentId: app.studentId,
+      newStatus,
+      actorId: session.user.id,
+    });
+
     revalidatePath("/applicants");
     return { success: true, newStatus };
   } catch (err: unknown) {
-    console.error("Shortlist error:", err);
+    captureServerError(err, {
+      scope: "shortlistApplicant",
+      applicationId,
+      actorId: session.user.id,
+    });
     return { error: err instanceof Error ? err.message : "Failed to update shortlist status." };
   }
 }
 
 export async function postCompanyResults(jobId: string, selectedStudentIds: string[]) {
   const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
-  const role = session.user.role;
-
-  if (role !== "company" && role !== "company_staff") {
-    return { error: "Unauthorized. Only companies can post results." };
+  if (!session?.user?.id) {
+    return { error: "Unauthorized. Only company-linked users can post results." };
   }
 
   try {
+    const companyContext = await getCompanyContextForUser(session.user.id);
+    if (!companyContext) {
+      return { error: "No company is linked to this user." };
+    }
+
+    // Get Job Details
     const [job] = await db.select({
       role: jobPostings.title,
-      companyId: jobPostings.companyId,
-      postedBy: jobPostings.postedBy
+      companyId: jobPostings.companyId
     }).from(jobPostings).where(eq(jobPostings.id, jobId)).limit(1);
 
-    if (!job) return { error: "Job not found." };
-
-    const [currentUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-
-    if (role === "company_staff" && job.postedBy !== session.user.id) {
-      return { error: "You can only post results for your own job postings." };
-    }
-    if (role === "company" && job.companyId !== currentUser?.companyId) {
-      return { error: "You can only post results for your company's job postings." };
+    if (!job || job.companyId !== companyContext.companyId) {
+      return { error: "You can only publish results for jobs owned by your company." };
     }
 
     const [company] = job.companyId
-      ? await db.select({ name: companyRegistrations.companyLegalName })
-          .from(companyRegistrations).where(eq(companyRegistrations.id, job.companyId)).limit(1)
+      ? await db.select({
+          name: companyRegistrations.companyLegalName
+        }).from(companyRegistrations).where(eq(companyRegistrations.id, job.companyId)).limit(1)
       : [{ name: "Unknown Company" }];
 
-    const studentNames: string[] = [];
-
-    for (const studentId of selectedStudentIds) {
-      // Mark as selected — do NOT generate verification code yet (PO does that via Raise OD)
-      await db.update(jobApplications)
-        .set({ status: "selected", updatedAt: new Date() })
-        .where(and(eq(jobApplications.jobId, jobId), eq(jobApplications.studentId, studentId)));
-
-      const [student] = await db.select({ firstName: users.firstName, lastName: users.lastName })
-        .from(users).where(eq(users.id, studentId)).limit(1);
-      if (student) studentNames.push(`${student.firstName} ${student.lastName}`);
+    const appIds = Array.from(new Set(selectedStudentIds.filter(Boolean)));
+    if (appIds.length === 0) {
+      return { error: "Select at least one candidate before publishing results." };
     }
 
-    // Notify all Placement Officers to review the shortlist
-    try {
-      const poUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "placement_officer"));
-      const poMsg = `${company?.name || "A company"} has shortlisted ${selectedStudentIds.length} student(s) for "${job.role}": ${studentNames.join(", ")}. Please review on the Jobs page and click "Raise OD" when ready.`;
+    const rounds = await db
+      .select({
+        id: selectionProcessRounds.id,
+        roundNumber: selectionProcessRounds.roundNumber,
+      })
+      .from(selectionProcessRounds)
+      .where(eq(selectionProcessRounds.jobId, jobId))
+      .orderBy(asc(selectionProcessRounds.roundNumber));
 
-      for (const po of poUsers) {
-        await db.insert(notifications).values({
-          userId: po.id, type: "selection",
-          title: "📋 Company Shortlist — Review Required",
-          message: poMsg, linkUrl: "/jobs",
-        });
+    const applications = await db
+      .select({
+        applicationId: jobApplications.id,
+        studentId: jobApplications.studentId,
+        status: jobApplications.status,
+      })
+      .from(jobApplications)
+      .where(and(eq(jobApplications.jobId, jobId), inArray(jobApplications.id, appIds)));
+
+    if (applications.length !== appIds.length) {
+      return { error: "Some selected applications could not be found for this job." };
+    }
+
+    const invalidStatusApplication = applications.find(
+      (application) => !["shortlisted", "round_scheduled"].includes(application.status || "")
+    );
+    if (invalidStatusApplication) {
+      return { error: "Only shortlisted or round-scheduled candidates can receive final results." };
+    }
+
+    if (rounds.length > 0) {
+      const progressRows = await db
+        .select({
+          applicationId: jobApplicationRoundProgress.applicationId,
+          roundId: jobApplicationRoundProgress.roundId,
+          status: jobApplicationRoundProgress.status,
+        })
+        .from(jobApplicationRoundProgress)
+        .where(inArray(jobApplicationRoundProgress.applicationId, appIds));
+
+      const roundIds = rounds.map((round) => round.id);
+      const progressByApplication = progressRows.reduce<Record<string, { cleared: Set<string>; scheduled: Set<string> }>>((acc, row) => {
+        if (!acc[row.applicationId]) {
+          acc[row.applicationId] = {
+            cleared: new Set<string>(),
+            scheduled: new Set<string>(),
+          };
+        }
+        if (row.status === "cleared") acc[row.applicationId].cleared.add(row.roundId);
+        if (row.status === "scheduled") acc[row.applicationId].scheduled.add(row.roundId);
+        return acc;
+      }, {});
+
+      const notReady = applications.find((application) => {
+        const progress = progressByApplication[application.applicationId];
+        if (!progress) return true;
+
+        const hasUnclearedRound = roundIds.some((roundId) => !progress.cleared.has(roundId));
+        const stillScheduled = progress.scheduled.size > 0;
+        return hasUnclearedRound || stillScheduled;
+      });
+
+      if (notReady) {
+        return {
+          error: "Candidates can receive final results only after every configured round is cleared.",
+        };
       }
-    } catch (poErr) {
-      console.error("Failed to notify PO:", poErr);
     }
 
+    for (const application of applications) {
+      const studentId = application.studentId;
+
+      // Update the application status
+      await db.update(jobApplications)
+        .set({ status: "selected", verificationCode: null, isVerified: false, updatedAt: new Date() })
+        .where(eq(jobApplications.id, application.applicationId));
+
+      await db
+        .insert(jobResultPublications)
+        .values({
+          jobId,
+          applicationId: application.applicationId,
+          companyId: companyContext.companyId,
+          studentId,
+          resultStatus: "selected",
+          publishedByUserId: session.user.id,
+          notes: "Selected by company. Awaiting Placement Officer OD raise.",
+        })
+        .onConflictDoNothing();
+
+      // Build email
+      const [student] = await db.select().from(users).where(eq(users.id, studentId)).limit(1);
+      
+      let emailTask: { email: string; name: string; phone: string | null; tutorId: null; pcId: null; hodId: null } | null = null;
+      if (student && student.email) {
+        // Notify Student Directly
+        await db.insert(notifications).values({
+          userId: student.id,
+          type: "selection",
+          title: "Internship Selection Result",
+          message: `Congratulations! You have been selected by ${company?.name}. Your result is now visible to the Placement Officer for OD initiation.`,
+          linkUrl: "/dashboard/student"
+        });
+        
+        emailTask = { email: student.email, name: `${student.firstName} ${student.lastName}`, phone: student.phone, tutorId: null, pcId: null, hodId: null };
+      }
+
+      // Side-effects (Email API requests) fire only if the atomic db transaction succeeds
+      if (emailTask) {
+        await sendCompanyResultEmail(
+          emailTask.email,
+          emailTask.name,
+          company?.name || "The Company",
+          job?.role || "Internship",
+          "RESULT"
+        );
+
+        // Fetch authorities outside logic if needed
+        try {
+          const approvers = await getApproversForStudent(studentId);
+          const notifyAlerts: Array<typeof notifications.$inferInsert> = [];
+          const pushMessage = `A student in your section (${emailTask.name}) was just shortlisted for ${job?.role || "an internship"} by ${company?.name}. Expect an OD request soon.`;
+          
+          if (approvers.tutorId) notifyAlerts.push({ userId: approvers.tutorId, type: "application_update", title: "Student Shortlisted", message: pushMessage, linkUrl: "/approvals" });
+          if (approvers.placementCoordinatorId) notifyAlerts.push({ userId: approvers.placementCoordinatorId, type: "application_update", title: "Student Shortlisted", message: pushMessage, linkUrl: "/approvals" });
+          if (approvers.hodId) notifyAlerts.push({ userId: approvers.hodId, type: "application_update", title: "Student Shortlisted", message: pushMessage, linkUrl: "/approvals" });
+
+          if (notifyAlerts.length > 0) {
+            // We do this outside the main transaction to not fail the core selection if this fails
+            await db.insert(notifications).values(notifyAlerts);
+          }
+        } catch (authErr) {
+          console.error("Failed to lookup authorities for notifications, skipping...", authErr);
+        }
+      }
+    }
+
+    await syncSelectionRoundCalendarForJob(jobId);
+
+    captureServerEvent("company_results_published", {
+      jobId,
+      companyId: companyContext.companyId,
+      selectedCount: applications.length,
+      actorId: session.user.id,
+    });
+
+    // Optional: Alert the hierarchy that a result was posted (can be global or mapped to selected students)
+    
     revalidatePath("/dashboard/company/applicants");
-    revalidatePath("/jobs");
     return { success: true };
   } catch (err: unknown) {
-    console.error("Post results error:", err);
+    captureServerError(err, {
+      scope: "postCompanyResults",
+      jobId,
+      actorId: session.user.id,
+      selectedApplicationIds: selectedStudentIds,
+    });
     return { error: err instanceof Error ? err.message : "Failed to post results" };
   }
 }
 
-export async function verifyAndInitializeOD(applicationId: string, code: string, startDate: string, endDate: string) {
+export async function toggleApplicantRoundScheduled(applicationId: string) {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== "student") {
-    return { error: "Unauthorized" };
+  if (!session?.user?.id) {
+    return { error: "Unauthorized. Only company-linked users can manage round stages." };
   }
 
   try {
-    // 1. Fetch application
     const [app] = await db.select({
       id: jobApplications.id,
-      verificationCode: jobApplications.verificationCode,
-      isVerified: jobApplications.isVerified,
-      jobId: jobApplications.jobId
+      status: jobApplications.status,
+      jobId: jobApplications.jobId,
+      studentId: jobApplications.studentId,
     })
     .from(jobApplications)
-    .where(and(eq(jobApplications.id, applicationId), eq(jobApplications.studentId, session.user.id)))
+    .where(eq(jobApplications.id, applicationId))
     .limit(1);
 
-    if (!app) return { error: "Application not found" };
-    if (app.isVerified) return { error: "Already verified." };
-    if (app.verificationCode !== code) return { error: "Invalid verification code." };
+    if (!app) return { error: "Application not found." };
 
-    // 2. Fetch Job/Company info to seed the OD Request
-    const [job] = await db.select().from(jobPostings).where(eq(jobPostings.id, app.jobId)).limit(1);
-    const [company] = job.companyId
-      ? await db.select().from(companyRegistrations).where(eq(companyRegistrations.id, job.companyId)).limit(1)
-      : [null];
+    const [job] = await db
+      .select({ companyId: jobPostings.companyId, title: jobPostings.title })
+      .from(jobPostings)
+      .where(eq(jobPostings.id, app.jobId))
+      .limit(1);
+    const companyContext = await getCompanyContextForUser(session.user.id);
+    if (!job || !companyContext || job.companyId !== companyContext.companyId) {
+      return { error: "You can only manage round stages for your own job postings." };
+    }
 
-    // 3. Mark application as verified
+    if (!["shortlisted", "round_scheduled"].includes(app.status || "")) {
+      return { error: "Only shortlisted candidates can be moved into a scheduled round." };
+    }
+
+    const newStatus = app.status === "round_scheduled" ? "shortlisted" : "round_scheduled";
+
+    if (newStatus === "round_scheduled") {
+      const rounds = await db
+        .select({
+          id: selectionProcessRounds.id,
+        })
+        .from(selectionProcessRounds)
+        .where(eq(selectionProcessRounds.jobId, app.jobId))
+        .orderBy(asc(selectionProcessRounds.roundNumber));
+
+      const firstRound = rounds[0];
+      if (!firstRound) {
+        return { error: "Add at least one structured round before scheduling candidates." };
+      }
+
+      const [existingProgress] = await db
+        .select({ id: jobApplicationRoundProgress.id })
+        .from(jobApplicationRoundProgress)
+        .where(eq(jobApplicationRoundProgress.applicationId, applicationId))
+        .limit(1);
+
+      if (!existingProgress) {
+        await db.insert(jobApplicationRoundProgress).values({
+          applicationId,
+          roundId: firstRound.id,
+          status: "scheduled",
+          reviewedByUserId: session.user.id,
+        });
+      }
+    } else {
+      await db
+        .delete(jobApplicationRoundProgress)
+        .where(
+          and(
+            eq(jobApplicationRoundProgress.applicationId, applicationId),
+            eq(jobApplicationRoundProgress.status, "scheduled")
+          )
+        );
+    }
+
     await db.update(jobApplications)
-      .set({ isVerified: true, updatedAt: new Date() })
+      .set({ status: newStatus, updatedAt: new Date() })
       .where(eq(jobApplications.id, applicationId));
 
-    // 4. Create the final rigorous OD Request mapping
-    await db.insert(internshipRequests).values({
-      studentId: session.user.id,
-      jobPostingId: app.jobId,
-      applicationType: "portal",
-      companyName: company?.companyLegalName || "External Company",
-      companyAddress: String(company?.address || "Registered Address"),
-      role: job?.title || "Intern",
-      startDate: validateDate(startDate, "Start Date"),
-      endDate: validateDate(endDate, "End Date"),
-      stipend: job?.stipendSalary || "Unpaid",
-      workMode: job?.workMode || "onsite",
-      status: "pending_tutor", // Begins hierarchical approval
-      currentTier: 1, 
-      submittedAt: new Date(),
+    if (newStatus === "round_scheduled") {
+      await db.insert(notifications).values({
+        userId: app.studentId,
+        type: "application_update",
+        title: "Interview Round Scheduled",
+        message: `Your next round for ${job.title} has been scheduled. Check your calendar for the latest timing.`,
+        linkUrl: "/calendar",
+      });
+    }
+
+    await syncSelectionRoundCalendarForJob(app.jobId);
+
+    captureServerEvent("job_application_round_schedule_toggled", {
+      applicationId,
+      jobId: app.jobId,
+      studentId: app.studentId,
+      newStatus,
+      actorId: session.user.id,
     });
 
+    revalidatePath("/applicants");
+    revalidatePath("/calendar");
     revalidatePath("/dashboard/student");
-    return { success: true };
+    return { success: true, newStatus };
   } catch (err: unknown) {
-    if (err instanceof ValidationError) return { error: err.message };
-    console.error("OD Verification error:", err);
-    return { error: err instanceof Error ? err.message : "Failed to verify and initialize OD." };
+    captureServerError(err, {
+      scope: "toggleApplicantRoundScheduled",
+      applicationId,
+      actorId: session.user.id,
+    });
+    return { error: err instanceof Error ? err.message : "Failed to update round stage." };
   }
 }
 
-export async function raiseODForStudents(studentIds: string[]) {
+export async function recordApplicantRoundOutcome(
+  applicationId: string,
+  roundId: string,
+  outcome: "cleared" | "rejected"
+) {
   const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
-  const role = session.user.role;
-
-  if (role !== "placement_officer") {
-    return { error: "Only placement officers can raise OD requests." };
+  if (!session?.user?.id) {
+    return { error: "Unauthorized. Only company-linked users can update round outcomes." };
   }
 
   try {
-    let notifiedCount = 0;
-
-    for (const studentId of studentIds) {
-      // Check if student already has an OD request
-      const [existingOD] = await db.select({ id: internshipRequests.id })
-        .from(internshipRequests)
-        .where(eq(internshipRequests.studentId, studentId))
-        .limit(1);
-
-      if (existingOD) continue;
-
-      // Get the selected application
-      const [selectedApp] = await db.select({
+    const [application] = await db
+      .select({
         id: jobApplications.id,
-        isVerified: jobApplications.isVerified,
         jobId: jobApplications.jobId,
-        verificationCode: jobApplications.verificationCode,
+        studentId: jobApplications.studentId,
       })
-        .from(jobApplications)
-        .where(and(eq(jobApplications.studentId, studentId), eq(jobApplications.status, "selected")))
-        .limit(1);
+      .from(jobApplications)
+      .where(eq(jobApplications.id, applicationId))
+      .limit(1);
 
-      if (!selectedApp) continue;
-      if (selectedApp.isVerified) continue; // Already verified
-      if (selectedApp.verificationCode) continue; // Skip if already has code
+    if (!application) {
+      return { error: "Application not found." };
+    }
 
-      // Generate verification code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const [job] = await db
+      .select({ companyId: jobPostings.companyId, title: jobPostings.title })
+      .from(jobPostings)
+      .where(eq(jobPostings.id, application.jobId))
+      .limit(1);
 
-      // Set the verification code on the application
-      await db.update(jobApplications)
-        .set({ verificationCode: code, updatedAt: new Date() })
-        .where(eq(jobApplications.id, selectedApp.id));
+    const companyContext = await getCompanyContextForUser(session.user.id);
+    if (!job || !companyContext || job.companyId !== companyContext.companyId) {
+      return { error: "You can only manage round outcomes for your own job postings." };
+    }
 
-      // Get student + job + company info for the email
-      const [student] = await db.select().from(users).where(eq(users.id, studentId)).limit(1);
-      if (!student) continue;
+    const rounds = await db
+      .select({
+        id: selectionProcessRounds.id,
+        roundNumber: selectionProcessRounds.roundNumber,
+        roundName: selectionProcessRounds.roundName,
+      })
+      .from(selectionProcessRounds)
+      .where(eq(selectionProcessRounds.jobId, application.jobId))
+      .orderBy(asc(selectionProcessRounds.roundNumber));
 
-      const studentName = `${student.firstName} ${student.lastName}`;
+    const currentRoundIndex = rounds.findIndex((round) => round.id === roundId);
+    if (currentRoundIndex === -1) {
+      return { error: "Round not found for this job." };
+    }
 
-      const [job] = await db.select({ title: jobPostings.title, companyId: jobPostings.companyId })
-        .from(jobPostings).where(eq(jobPostings.id, selectedApp.jobId)).limit(1);
+    const [existingProgress] = await db
+      .select({ id: jobApplicationRoundProgress.id })
+      .from(jobApplicationRoundProgress)
+      .where(
+        and(
+          eq(jobApplicationRoundProgress.applicationId, applicationId),
+          eq(jobApplicationRoundProgress.roundId, roundId)
+        )
+      )
+      .limit(1);
 
-      let companyName = "The Company";
-      if (job?.companyId) {
-        const [company] = await db.select({ name: companyRegistrations.companyLegalName })
-          .from(companyRegistrations).where(eq(companyRegistrations.id, job.companyId)).limit(1);
-        if (company) companyName = company.name;
-      }
+    if (existingProgress) {
+      await db
+        .update(jobApplicationRoundProgress)
+        .set({
+          status: outcome,
+          reviewedByUserId: session.user.id,
+          reviewedAt: new Date(),
+        })
+        .where(eq(jobApplicationRoundProgress.id, existingProgress.id));
+    } else {
+      await db.insert(jobApplicationRoundProgress).values({
+        applicationId,
+        roundId,
+        status: outcome,
+        reviewedByUserId: session.user.id,
+        reviewedAt: new Date(),
+      });
+    }
 
-      // Notify student with selection result + verification code
+    if (outcome === "rejected") {
+      await db
+        .update(jobApplications)
+        .set({ status: "rejected", updatedAt: new Date() })
+        .where(eq(jobApplications.id, applicationId));
+
       await db.insert(notifications).values({
-        userId: studentId,
-        type: "selection",
-        title: "🎉 You've Been Selected — Start Your OD Process",
-        message: `Congratulations! You have been selected by ${companyName} for "${job?.title || "Internship"}". The Placement Officer has approved your selection. Please check your email for the verification code and submit your OD request from your dashboard.`,
+        userId: application.studentId,
+        type: "application_update",
+        title: "Application Closed",
+        message: `Your application for ${job.title} was not advanced beyond the current round.`,
         linkUrl: "/dashboard/student",
       });
+    } else {
+      const nextRound = rounds[currentRoundIndex + 1];
 
-      // Send verification email + SMS
-      try {
-        await sendCompanyResultEmail(student.email, studentName, companyName, job?.title || "Internship", code);
-        if (student.phone) {
-          await sendVerificationSMS(student.phone, code);
+      if (nextRound) {
+        const [existingNext] = await db
+          .select({ id: jobApplicationRoundProgress.id })
+          .from(jobApplicationRoundProgress)
+          .where(
+            and(
+              eq(jobApplicationRoundProgress.applicationId, applicationId),
+              eq(jobApplicationRoundProgress.roundId, nextRound.id)
+            )
+          )
+          .limit(1);
+
+        if (existingNext) {
+          await db
+            .update(jobApplicationRoundProgress)
+            .set({
+              status: "scheduled",
+              reviewedByUserId: session.user.id,
+              reviewedAt: new Date(),
+            })
+            .where(eq(jobApplicationRoundProgress.id, existingNext.id));
+        } else {
+          await db.insert(jobApplicationRoundProgress).values({
+            applicationId,
+            roundId: nextRound.id,
+            status: "scheduled",
+            reviewedByUserId: session.user.id,
+            reviewedAt: new Date(),
+          });
         }
-      } catch (mailErr) {
-        console.error("Failed to send verification email/SMS:", mailErr);
+
+        await db
+          .update(jobApplications)
+          .set({ status: "round_scheduled", updatedAt: new Date() })
+          .where(eq(jobApplications.id, applicationId));
+
+        await db.insert(notifications).values({
+          userId: application.studentId,
+          type: "application_update",
+          title: "Next Round Unlocked",
+          message: `You cleared a round for ${job.title}. Check your calendar for the next scheduled round.`,
+          linkUrl: "/calendar",
+        });
+      } else {
+        await db
+          .update(jobApplications)
+          .set({ status: "round_scheduled", updatedAt: new Date() })
+          .where(eq(jobApplications.id, applicationId));
+
+        await db.insert(notifications).values({
+          userId: application.studentId,
+          type: "application_update",
+          title: "All Rounds Cleared",
+          message: `You cleared the final listed round for ${job.title}. The company can now publish the final result.`,
+          linkUrl: "/dashboard/student",
+        });
       }
-
-      // Notify authorities
-      try {
-        const approvers = await getApproversForStudent(studentId);
-        const authorityMsg = `Placement Officer has raised OD for ${studentName} (selected by ${companyName}). The student has been sent a verification code to begin the approval process.`;
-        const notifyAlerts: Array<typeof notifications.$inferInsert> = [];
-
-        if (approvers.tutorId) notifyAlerts.push({ userId: approvers.tutorId, type: "od_reminder", title: "OD Raised by PO", message: authorityMsg, linkUrl: "/approvals" });
-        if (approvers.placementCoordinatorId) notifyAlerts.push({ userId: approvers.placementCoordinatorId, type: "od_reminder", title: "OD Raised by PO", message: authorityMsg, linkUrl: "/approvals" });
-        if (approvers.hodId) notifyAlerts.push({ userId: approvers.hodId, type: "od_reminder", title: "OD Raised by PO", message: authorityMsg, linkUrl: "/approvals" });
-
-        if (notifyAlerts.length > 0) {
-          await db.insert(notifications).values(notifyAlerts);
-        }
-      } catch (authErr) {
-        console.error("Failed to notify authorities for OD raise:", authErr);
-      }
-
-      notifiedCount++;
     }
 
-    revalidatePath("/jobs");
-    revalidatePath("/approvals");
+    await syncSelectionRoundCalendarForJob(application.jobId);
 
-    if (notifiedCount === 0) {
-      return { success: true, message: "All selected students already have OD requests in progress." };
-    }
+    captureServerEvent("job_application_round_outcome_recorded", {
+      applicationId,
+      roundId,
+      outcome,
+      studentId: application.studentId,
+      jobId: application.jobId,
+      actorId: session.user.id,
+    });
 
-    return { success: true, message: `OD process raised for ${notifiedCount} student(s). They have been notified.` };
+    revalidatePath("/applicants");
+    revalidatePath("/calendar");
+    revalidatePath("/dashboard/student");
+    return { success: true };
   } catch (err: unknown) {
-    console.error("Raise OD error:", err);
-    return { error: err instanceof Error ? err.message : "Failed to raise OD." };
+    captureServerError(err, {
+      scope: "recordApplicantRoundOutcome",
+      applicationId,
+      roundId,
+      outcome,
+      actorId: session.user.id,
+    });
+    return { error: err instanceof Error ? err.message : "Failed to update round outcome." };
   }
+}
+
+export async function raiseODFromSelection(resultPublicationId: string, startDate: string, endDate: string) {
+  const session = await auth();
+  if (!session?.user?.id || session.user.role !== "placement_officer") {
+    return { error: "Only the Placement Officer can raise OD requests from company results." };
+  }
+
+  try {
+    const [resultPublication] = await db
+      .select()
+      .from(jobResultPublications)
+      .where(eq(jobResultPublications.id, resultPublicationId))
+      .limit(1);
+
+    if (!resultPublication || resultPublication.resultStatus !== "selected") {
+      return { error: "Selected result not found." };
+    }
+
+    const [existingRaise] = await db
+      .select()
+      .from(odRaiseRequests)
+      .where(eq(odRaiseRequests.resultPublicationId, resultPublicationId))
+      .limit(1);
+
+    if (existingRaise?.status === "od_raised") {
+      return { error: "OD has already been raised for this result." };
+    }
+
+    const [job] = await db.select().from(jobPostings).where(eq(jobPostings.id, resultPublication.jobId)).limit(1);
+    const [company] = await db.select().from(companyRegistrations).where(eq(companyRegistrations.id, resultPublication.companyId)).limit(1);
+    if (!job || !company) {
+      return { error: "Job or company details are missing." };
+    }
+
+    const slaHours = await getDefaultOdSlaHours();
+
+    const [createdRequest] = await db.insert(internshipRequests).values({
+      studentId: resultPublication.studentId,
+      jobPostingId: resultPublication.jobId,
+      applicationType: "portal",
+      companyName: company.companyLegalName,
+      companyAddress: company.address,
+      role: job.title,
+      startDate: validateDate(startDate, "Start Date"),
+      endDate: validateDate(endDate, "End Date"),
+      stipend: job.stipendSalary,
+      workMode: job.workMode,
+      status: "pending_tutor",
+      currentTier: 1,
+      currentTierEnteredAt: new Date(),
+      currentTierSlaHours: slaHours,
+      submittedAt: new Date(),
+    }).returning({ id: internshipRequests.id });
+
+    if (existingRaise) {
+      await db
+        .update(odRaiseRequests)
+        .set({
+          internshipRequestId: createdRequest.id,
+          status: "od_raised",
+          raisedByUserId: session.user.id,
+          startDate: validateDate(startDate, "Start Date"),
+          endDate: validateDate(endDate, "End Date"),
+          raisedAt: new Date(),
+        })
+        .where(eq(odRaiseRequests.id, existingRaise.id));
+    } else {
+      await db.insert(odRaiseRequests).values({
+        resultPublicationId,
+        studentId: resultPublication.studentId,
+        jobId: resultPublication.jobId,
+        companyId: resultPublication.companyId,
+        internshipRequestId: createdRequest.id,
+        status: "od_raised",
+        raisedByUserId: session.user.id,
+        startDate: validateDate(startDate, "Start Date"),
+        endDate: validateDate(endDate, "End Date"),
+        raisedAt: new Date(),
+      });
+    }
+
+    await db.insert(notifications).values({
+      userId: resultPublication.studentId,
+      type: "od_raised",
+      title: "OD Approval Flow Started",
+      message: `${company.companyLegalName} selection has been converted into an OD approval request by the Placement Officer.`,
+      linkUrl: "/applications",
+    });
+
+    await db.insert(calendarEvents).values({
+      userId: resultPublication.studentId,
+      title: `OD Raised: ${company.companyLegalName}`,
+      description: `Placement Officer started OD approval for ${job.title}`,
+      eventType: "od_raised",
+      startDate: new Date(validateDate(startDate, "Start Date")),
+      relatedEntityId: createdRequest.id,
+      relatedEntityType: "internship_request",
+      isAllDay: true,
+    });
+
+    captureServerEvent("od_raised_from_company_selection", {
+      resultPublicationId,
+      internshipRequestId: createdRequest.id,
+      studentId: resultPublication.studentId,
+      companyId: resultPublication.companyId,
+      jobId: resultPublication.jobId,
+      actorId: session.user.id,
+    });
+
+    revalidatePath("/applications");
+    revalidatePath("/dashboard/admin");
+    return { success: true };
+  } catch (err: unknown) {
+    if (err instanceof ValidationError) return { error: err.message };
+    captureServerError(err, {
+      scope: "raiseODFromSelection",
+      resultPublicationId,
+      actorId: session.user.id,
+    });
+    return { error: err instanceof Error ? err.message : "Failed to raise OD request." };
+  }
+}
+
+export async function verifyAndInitializeOD(applicationId: string, code: string, startDate: string, endDate: string) {
+  void applicationId;
+  void code;
+  void startDate;
+  void endDate;
+  return {
+    error: "OD requests are now raised by the Placement Officer after company results are reviewed.",
+  };
 }

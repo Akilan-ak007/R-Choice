@@ -3,8 +3,7 @@ import { db } from "@/lib/db";
 import { jobApplications, jobPostings, users, companyRegistrations, studentProfiles } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Trophy, Building2, Briefcase, GraduationCap, ExternalLink } from "lucide-react";
+import { Trophy, Building2, Briefcase, GraduationCap } from "lucide-react";
 
 export default async function ShortlistedPage() {
   const session = await auth();

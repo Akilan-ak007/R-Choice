@@ -1,254 +1,336 @@
 import { db } from "@/lib/db";
-import { users, studentProfiles, studentEducation, studentSkills, studentProjects, studentCertifications, studentLinks, placementReadiness } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
-import { notFound } from "next/navigation";
-import { GraduationCap, Mail, Phone, Calendar, User, Code, Award, Briefcase, Link as LinkIcon, FileText, CheckCircle } from "lucide-react";
-import Link from "next/link";
-import { format } from "date-fns";
+import { 
+  users, 
+  studentProfiles, 
+  studentSkills, 
+  studentCertifications, 
+  studentProjects, 
+  studentEducation 
+} from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  ArrowLeft, GraduationCap,
+  User, Briefcase, Award, ExternalLink, Code, BookOpen
+} from "lucide-react";
+
+const studentSectionStyle: React.CSSProperties = {
+  background: "var(--bg-primary)",
+  border: "1px solid var(--border-color)",
+  borderRadius: "var(--radius-lg)",
+  padding: "var(--space-5)",
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--space-4)",
+};
+
+const studentSectionHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  fontSize: "1.1rem",
+  fontWeight: 600,
+  color: "var(--text-primary)",
+  borderBottom: "1px solid var(--border-color)",
+  paddingBottom: "var(--space-3)",
+};
+
+const studentFieldRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "var(--space-3)",
+};
+
+const studentFieldStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+};
+
+const studentLabelStyle: React.CSSProperties = {
+  fontSize: "0.75rem",
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  color: "var(--text-muted)",
+};
+
+const studentValueStyle: React.CSSProperties = {
+  fontSize: "0.9375rem",
+  color: "var(--text-primary)",
+  fontWeight: 500,
+};
+
+function StudentField({ label, value, href }: { label: string; value?: string | number | null; href?: string }) {
+  if (!value) return null;
+  return (
+    <div style={studentFieldStyle}>
+      <span style={studentLabelStyle}>{label}</span>
+      {href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" style={{ ...studentValueStyle, color: "var(--primary-color)", textDecoration: "none", display: "flex", alignItems: "center", gap: "4px" }}>
+          {String(value)} <ExternalLink size={12} />
+        </a>
+      ) : (
+        <span style={studentValueStyle}>{String(value)}</span>
+      )}
+    </div>
+  );
+}
 
 export default async function StudentPortfolioPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await auth();
-  
-  if (!session?.user?.id) {
-    return (
-      <div className="empty-state">
-        <User size={48} />
-        <h3>Access Denied</h3>
-        <p>You must be logged in to view student profiles.</p>
-        <Link href="/" className="btn btn-primary mt-4">Return to Home</Link>
-      </div>
-    );
+  if (!session?.user?.id) redirect("/");
+
+  // Fetch student user
+  const [studentUser] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, params.id))
+    .limit(1);
+
+  if (!studentUser || studentUser.role !== "student") {
+    redirect("/students");
   }
 
-  // Fetch base user
-  const userOpt = await db.select().from(users).where(eq(users.id, params.id)).limit(1);
-  if (!userOpt.length) notFound();
-  const user = userOpt[0];
+  // Fetch student profile data
+  const [profile] = await db
+    .select()
+    .from(studentProfiles)
+    .where(eq(studentProfiles.userId, params.id))
+    .limit(1);
 
-  // Fetch profile
-  const profileOpt = await db.select().from(studentProfiles).where(eq(studentProfiles.userId, user.id)).limit(1);
-  const profile = profileOpt.length > 0 ? profileOpt[0] : null;
+  // Fetch related records if profile exists
+  let skills: typeof studentSkills.$inferSelect[] = [];
+  let certifications: typeof studentCertifications.$inferSelect[] = [];
+  let projects: typeof studentProjects.$inferSelect[] = [];
+  let education: typeof studentEducation.$inferSelect[] = [];
 
-  // Fetch nested data
-  const education = profile ? await db.select().from(studentEducation).where(eq(studentEducation.studentId, profile.id)).orderBy(desc(studentEducation.endYear)) : [];
-  const skills = profile ? await db.select().from(studentSkills).where(eq(studentSkills.studentId, profile.id)).orderBy(desc(studentSkills.isTop)) : [];
-  const projects = profile ? await db.select().from(studentProjects).where(eq(studentProjects.studentId, profile.id)) : [];
-  const certs = profile ? await db.select().from(studentCertifications).where(eq(studentCertifications.studentId, profile.id)).orderBy(desc(studentCertifications.issueDate)) : [];
-  const readinessOpt = profile ? await db.select().from(placementReadiness).where(eq(placementReadiness.studentId, profile.id)).limit(1) : [];
-  const readiness = readinessOpt.length > 0 ? readinessOpt[0] : null;
+  if (profile) {
+    skills = await db.select().from(studentSkills).where(eq(studentSkills.studentId, profile.id));
+    certifications = await db.select().from(studentCertifications).where(eq(studentCertifications.studentId, profile.id));
+    projects = await db.select().from(studentProjects).where(eq(studentProjects.studentId, profile.id));
+    education = await db.select().from(studentEducation).where(eq(studentEducation.studentId, profile.id));
+  }
 
   return (
-    <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)", paddingBottom: "var(--space-8)" }}>
-      {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-        <Link href="/students" className="vcard-link" style={{ padding: "4px 8px", borderRadius: "var(--radius-sm)", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-          &larr; Back to Students
+    <div className="animate-fade-in" style={{ maxWidth: "960px", margin: "0 auto", paddingBottom: "var(--space-8)" }}>
+      <div style={{ marginBottom: "var(--space-4)" }}>
+        <Link href="/students" className="btn btn-ghost" style={{ padding: "8px 0", display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none", color: "var(--text-secondary)" }}>
+          <ArrowLeft size={16} /> Back to Directory
         </Link>
       </div>
 
-      {/* ── Hero Profile Section ── */}
-      <div className="card" style={{ padding: "0", overflow: "hidden", position: "relative" }}>
-        <div style={{ height: "120px", background: "var(--gradient-primary)", position: "relative" }}>
-          <div style={{ position: "absolute", bottom: "-40px", left: "var(--space-6)", display: "flex", alignItems: "flex-end", gap: "var(--space-4)" }}>
-            <div style={{ width: "80px", height: "80px", borderRadius: "var(--radius-full)", backgroundColor: "white", padding: "4px", boxShadow: "var(--shadow-sm)" }}>
-              {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt={user.firstName} style={{ width: "100%", height: "100%", borderRadius: "var(--radius-full)", objectFit: "cover" }} />
-              ) : (
-                <div style={{ width: "100%", height: "100%", borderRadius: "var(--radius-full)", backgroundColor: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border-color)" }}>
-                  <User size={32} color="var(--text-muted)" />
-                </div>
-              )}
-            </div>
-          </div>
+      {/* Hero Header */}
+      <div style={{
+        background: "linear-gradient(135deg, var(--rathinam-blue), var(--rathinam-red))",
+        borderRadius: "var(--radius-lg)",
+        padding: "var(--space-6) var(--space-5)",
+        color: "white",
+        marginBottom: "var(--space-5)",
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--space-5)",
+        flexWrap: "wrap",
+      }}>
+        <div style={{
+          width: "80px",
+          height: "80px",
+          borderRadius: "16px",
+          background: "rgba(255,255,255,0.2)",
+          backdropFilter: "blur(10px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          {studentUser.avatarUrl ? (
+            <Image src={studentUser.avatarUrl} alt={studentUser.firstName} width={80} height={80} style={{ width: "100%", height: "100%", borderRadius: "16px", objectFit: "cover" }} />
+          ) : (
+            <GraduationCap size={40} />
+          )}
         </div>
-        
-        <div style={{ padding: "var(--space-6)", paddingTop: "56px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-4)" }}>
-            <div>
-              <h1 style={{ fontSize: "1.75rem", margin: "0 0 8px 0" }}>{user.firstName} {user.lastName}</h1>
-              <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
-                {profile?.registerNo && <span className="badge" style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", outline: "1px solid var(--border-color)" }}>{profile.registerNo}</span>}
-                {profile?.course && <span className="badge" style={{ background: "rgba(30, 155, 215, 0.1)", color: "var(--color-info)" }}>{profile.course}</span>}
-                {profile?.department && <span className="badge" style={{ background: "rgba(141, 198, 63, 0.1)", color: "var(--color-success)" }}>{profile.department}</span>}
-                {profile?.year && <span className="badge" style={{ background: "var(--bg-hover)" }}>Year {profile.year}</span>}
-              </div>
-              <p style={{ color: "var(--text-muted)", maxWidth: "800px", marginTop: "var(--space-2)" }}>
-                {profile?.professionalSummary || user.about || "No professional summary provided yet."}
-              </p>
-            </div>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: "200px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-                <Mail size={16} /> <a href={`mailto:${user.email}`} style={{ color: "inherit" }}>{user.email}</a>
-              </div>
-              {user.phone && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-                  <Phone size={16} /> <a href={`tel:${user.phone}`} style={{ color: "inherit" }}>{user.phone}</a>
-                </div>
-              )}
-              {profile?.dob && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-                  <Calendar size={16} /> {format(new Date(profile.dob), "MMM d, yyyy")}
-                </div>
-              )}
-              
-              <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-                {profile?.linkedinLink && (
-                  <a href={profile.linkedinLink} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.75rem", minHeight: "32px" }}>
-                    LinkedIn
-                  </a>
-                )}
-                {profile?.githubLink && (
-                  <a href={profile.githubLink} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.75rem", minHeight: "32px" }}>
-                    GitHub
-                  </a>
-                )}
-                {profile?.resumeUrl && (
-                  <a href={profile.resumeUrl} target="_blank" rel="noreferrer" className="btn btn-primary" style={{ padding: "4px 8px", fontSize: "0.75rem", minHeight: "32px" }}>
-                    <FileText size={14} /> Resume
-                  </a>
-                )}
-              </div>
-            </div>
+        <div style={{ flex: 1 }}>
+          <h1 style={{ margin: 0, fontSize: "1.75rem", fontWeight: 700 }}>
+            {studentUser.firstName} {studentUser.lastName}
+          </h1>
+          {profile?.department && (
+            <p style={{ margin: "4px 0 0", opacity: 0.85, fontSize: "1rem" }}>
+              {profile.department} {profile.year ? `• Year ${profile.year}` : ""} {profile.section ? `• Section ${profile.section}` : ""}
+            </p>
+          )}
+          <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap", marginTop: "var(--space-3)" }}>
+            {profile?.registerNo && (
+              <span style={{ background: "rgba(255,255,255,0.2)", padding: "4px 12px", borderRadius: "20px", fontSize: "0.8125rem" }}>
+                {profile.registerNo}
+              </span>
+            )}
+            {profile?.cgpa && (
+              <span style={{ background: "rgba(255,255,255,0.2)", padding: "4px 12px", borderRadius: "20px", fontSize: "0.8125rem", fontWeight: 600 }}>
+                CGPA: {profile.cgpa}
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "var(--space-6)" }}>
-        
-        {/* ── Left Column ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-          
-          <div className="card">
-            <h3 style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "var(--space-4)" }}>
-              <GraduationCap size={20} className="text-primary" /> Education Details
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-              <div style={{ padding: "var(--space-3)", background: "var(--bg-elevated)", borderRadius: "var(--radius-md)" }}>
-                <div style={{ fontWeight: 600 }}>{profile?.school || "Rathinam College"}</div>
-                <div style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-                  {profile?.programType || "UG"} - {profile?.course || "Course"} in {profile?.department || "Department"}
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
+
+        {/* Academic Overview */}
+        <div style={studentSectionStyle}>
+          <div style={studentSectionHeaderStyle}>
+            <GraduationCap size={18} color="var(--primary-color)" /> Academic Overview
+          </div>
+          {profile?.professionalSummary && (
+            <p style={{ color: "var(--text-secondary)", lineHeight: 1.7, margin: 0 }}>
+              {profile.professionalSummary}
+            </p>
+          )}
+          <div style={studentFieldRowStyle}>
+            <StudentField label="School" value={profile?.school} />
+            <StudentField label="Program" value={profile?.program} />
+            <StudentField label="Course" value={profile?.course} />
+            <StudentField label="Batch" value={profile?.batchStartYear && profile?.batchEndYear ? `${profile.batchStartYear} - ${profile.batchEndYear}` : null} />
+          </div>
+        </div>
+
+        {/* Contact Info */}
+        <div style={studentSectionStyle}>
+          <div style={studentSectionHeaderStyle}>
+            <User size={18} color="var(--primary-color)" /> Contact Information
+          </div>
+          <div style={studentFieldRowStyle}>
+            <StudentField label="Email" value={studentUser.email} href={`mailto:${studentUser.email}`} />
+            <StudentField label="Phone" value={studentUser.phone} href={studentUser.phone ? `tel:${studentUser.phone}` : undefined} />
+            <StudentField label="LinkedIn" value={profile?.linkedinLink ? "View Profile" : null} href={profile?.linkedinLink || undefined} />
+            <StudentField label="GitHub" value={profile?.githubLink ? "View GitHub" : null} href={profile?.githubLink || undefined} />
+            <StudentField label="Portfolio" value={profile?.portfolioUrl ? "View Portfolio" : null} href={profile?.portfolioUrl || undefined} />
+            <StudentField label="Resume" value={profile?.resumeUrl ? "Download Resume" : null} href={profile?.resumeUrl || undefined} />
+          </div>
+        </div>
+
+        {/* Skills */}
+        {skills.length > 0 && (
+          <div style={studentSectionStyle}>
+            <div style={studentSectionHeaderStyle}>
+              <Code size={18} color="var(--primary-color)" /> Skills
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              {skills.map((skill, index) => (
+                <span key={index} style={{
+                  background: skill.isTop ? "var(--primary-color)" : "var(--primary-light)",
+                  color: skill.isTop ? "white" : "var(--primary-color)",
+                  padding: "4px 12px",
+                  borderRadius: "20px",
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px"
+                }}>
+                  {skill.isTop && <Award size={12} />}
+                  {skill.skillName} {skill.proficiency && <span style={{ opacity: 0.7, fontSize: "0.75rem" }}>({skill.proficiency})</span>}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Education History */}
+        {education.length > 0 && (
+          <div style={studentSectionStyle}>
+            <div style={studentSectionHeaderStyle}>
+              <BookOpen size={18} color="var(--primary-color)" /> Education History
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+              {education.map((edu, index) => (
+                <div key={index} style={{ padding: "var(--space-3)", background: "var(--bg-secondary)", borderRadius: "var(--radius-md)" }}>
+                  <h3 style={{ margin: "0 0 4px 0", fontSize: "1rem", color: "var(--text-primary)" }}>{edu.institution}</h3>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                    <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+                      {edu.degree} {edu.fieldOfStudy && `in ${edu.fieldOfStudy}`}
+                    </p>
+                    <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)", fontWeight: 500 }}>
+                      {edu.startYear} - {edu.endYear || 'Present'}
+                    </span>
+                  </div>
+                  {edu.score && (
+                    <p style={{ margin: "4px 0 0", fontSize: "0.875rem", color: "var(--text-primary)", fontWeight: 500 }}>
+                      {edu.scoreType || 'Score'}: {edu.score}
+                    </p>
+                  )}
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px", fontSize: "0.875rem" }}>
-                  <span style={{ color: "var(--text-muted)" }}>
-                    Batch: {profile?.batchStartYear ? `${profile?.batchStartYear}-${profile?.batchEndYear}` : "N/A"}
-                  </span>
-                  {profile?.cgpa && <strong style={{ color: "var(--color-success)" }}>CGPA: {profile.cgpa}</strong>}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Projects */}
+        {projects.length > 0 && (
+          <div style={studentSectionStyle}>
+            <div style={studentSectionHeaderStyle}>
+              <Briefcase size={18} color="var(--primary-color)" /> Projects
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "var(--space-4)" }}>
+              {projects.map((project, index) => (
+                <div key={index} style={{ padding: "var(--space-4)", background: "var(--bg-secondary)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column" }}>
+                  <h3 style={{ margin: "0 0 8px 0", fontSize: "1rem", color: "var(--text-primary)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    {project.title}
+                    {project.projectUrl && (
+                      <a href={project.projectUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary-color)" }}>
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
+                  </h3>
+                  <p style={{ margin: "0 0 12px 0", fontSize: "0.875rem", color: "var(--text-secondary)", flex: 1 }}>
+                    {project.description}
+                  </p>
+                  {project.technologies && project.technologies.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                      {project.technologies.map((tech, i) => (
+                        <span key={i} style={{ background: "var(--bg-primary)", border: "1px solid var(--border-color)", padding: "2px 8px", borderRadius: "12px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-              
-              {education.map(ed => (
-                <div key={ed.id} style={{ padding: "var(--space-3)", borderLeft: "2px solid var(--border-color)", marginLeft: "8px" }}>
-                  <div style={{ fontWeight: 500 }}>{ed.institution}</div>
-                  <div style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>{ed.degree} {ed.fieldOfStudy ? `in ${ed.fieldOfStudy}` : ""}</div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                    <span>{ed.startYear} - {ed.endYear || "Present"}</span>
-                    {ed.score && <span>{ed.scoreType}: {ed.score}</span>}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Certifications */}
+        {certifications.length > 0 && (
+          <div style={studentSectionStyle}>
+            <div style={studentSectionHeaderStyle}>
+              <Award size={18} color="var(--primary-color)" /> Certifications
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: "var(--space-3)" }}>
+              {certifications.map((cert, index) => (
+                <div key={index} style={{ padding: "var(--space-3)", background: "var(--bg-secondary)", borderRadius: "var(--radius-md)", display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                  <div style={{ width: "32px", height: "32px", background: "var(--primary-light)", color: "var(--primary-color)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Award size={16} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: "0 0 2px 0", fontSize: "0.9375rem", color: "var(--text-primary)" }}>{cert.name}</h4>
+                    <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--text-secondary)" }}>{cert.issuingOrg}</p>
+                    {cert.issueDate && <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: "var(--text-muted)" }}>Issued: {cert.issueDate}</p>}
+                    {cert.credentialUrl && (
+                      <a href={cert.credentialUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", color: "var(--primary-color)", textDecoration: "none", marginTop: "4px", fontWeight: 500 }}>
+                        View Credential <ExternalLink size={10} />
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           </div>
+        )}
 
-          <div className="card">
-            <h3 style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "var(--space-4)" }}>
-              <Code size={20} className="text-primary" /> Skills
-            </h3>
-            {skills.length > 0 ? (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {skills.map(s => (
-                  <span key={s.id} className="badge" style={{ 
-                    background: s.isTop ? "rgba(30, 155, 215, 0.1)" : "var(--bg-elevated)", 
-                    color: s.isTop ? "var(--color-info)" : "var(--text-secondary)",
-                    border: "1px solid var(--border-color)"
-                  }}>
-                    {s.isTop && <CheckCircle size={12} style={{ marginRight: "4px" }} />}
-                    {s.skillName}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>No skills listed.</p>
-            )}
-          </div>
-
-        </div>
-
-        {/* ── Right Column ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-          
-          {readiness && (
-            <div className="card" style={{ borderTop: "3px solid var(--color-success)" }}>
-              <h3 style={{ marginBottom: "var(--space-2)" }}>Placement Readiness Score</h3>
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
-                <div style={{ fontSize: "2.5rem", fontWeight: 700, color: "var(--color-success)" }}>
-                  {readiness.totalScore}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ height: "8px", width: "100%", background: "var(--bg-elevated)", borderRadius: "4px", overflow: "hidden", marginBottom: "8px" }}>
-                    <div style={{ height: "100%", width: `${Math.min(readiness.totalScore || 0, 100)}%`, background: "var(--gradient-success)" }} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                    <span>Badge: <strong style={{ textTransform: "capitalize" }}>{readiness.badgeLevel}</strong></span>
-                    <span>Out of 100</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="card">
-            <h3 style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "var(--space-4)" }}>
-              <Briefcase size={20} className="text-primary" /> Projects
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-              {projects.length > 0 ? projects.map(p => (
-                <div key={p.id} style={{ paddingBottom: "var(--space-4)", borderBottom: "1px solid var(--border-color)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <div style={{ fontWeight: 600 }}>{p.title}</div>
-                    {p.projectUrl && <a href={p.projectUrl} target="_blank" rel="noreferrer" style={{ color: "var(--text-link)", fontSize: "0.875rem" }}><LinkIcon size={14} /> Link</a>}
-                  </div>
-                  <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", margin: "4px 0" }}>{p.description}</p>
-                  {p.technologies && p.technologies.length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "8px" }}>
-                      {p.technologies.map(t => (
-                        <span key={t} style={{ fontSize: "0.65rem", padding: "2px 6px", background: "var(--bg-hover)", borderRadius: "4px", color: "var(--text-muted)" }}>{t}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )) : (
-                <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>No projects added.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="card">
-            <h3 style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "var(--space-4)" }}>
-              <Award size={20} className="text-primary" /> Certifications
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-              {certs.length > 0 ? certs.map(c => (
-                <div key={c.id} style={{ display: "flex", gap: "var(--space-3)", padding: "var(--space-2)", background: "var(--bg-elevated)", borderRadius: "var(--radius-md)" }}>
-                  <Award size={24} color="var(--color-primary)" style={{ flexShrink: 0, marginTop: "4px" }} />
-                  <div>
-                    <div style={{ fontWeight: 500, fontSize: "0.9375rem" }}>{c.name}</div>
-                    <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>{c.issuingOrg}</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                      {c.issueDate ? format(new Date(c.issueDate), "MMM yyyy") : ""}
-                      {c.credentialUrl && <a href={c.credentialUrl} target="_blank" rel="noreferrer" style={{ marginLeft: "8px", color: "var(--text-link)" }}>View Credential</a>}
-                    </div>
-                  </div>
-                </div>
-              )) : (
-                <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>No certifications added.</p>
-              )}
-            </div>
-          </div>
-
-        </div>
       </div>
     </div>
   );

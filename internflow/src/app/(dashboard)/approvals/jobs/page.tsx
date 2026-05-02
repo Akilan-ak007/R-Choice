@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { jobPostings, users } from "@/lib/db/schema";
+import { jobPostings, companyRegistrations } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { Building2 } from "lucide-react";
@@ -14,17 +14,17 @@ export default async function JobApprovalsPage() {
   }
 
   const role = session.user.role;
-  if (role !== "placement_officer" && role !== "management_corporation") {
+  if (role !== "management_corporation") {
     redirect("/");
   }
 
-  const targetStatus = role === "management_corporation" ? "pending_mcr_approval" : "pending_review";
+  const targetStatus = "pending_mcr_approval";
 
   const jobs = await db
     .select({
       id: jobPostings.id,
       title: jobPostings.title,
-      companyName: users.firstName,
+      companyName: companyRegistrations.companyLegalName,
       stipend: jobPostings.stipendSalary,
       location: jobPostings.location,
       description: jobPostings.description,
@@ -33,7 +33,7 @@ export default async function JobApprovalsPage() {
       createdAt: jobPostings.createdAt
     })
     .from(jobPostings)
-    .innerJoin(users, eq(jobPostings.postedBy, users.id))
+    .leftJoin(companyRegistrations, eq(jobPostings.companyId, companyRegistrations.id))
     .where(eq(jobPostings.status, targetStatus))
     .orderBy(desc(jobPostings.createdAt));
 
@@ -42,9 +42,7 @@ export default async function JobApprovalsPage() {
       <div className="page-header" style={{ marginBottom: "var(--space-6)" }}>
         <h1>Job Postings Review</h1>
         <p>
-          {role === "management_corporation" 
-            ? "Review and approve internship/job opportunities posted by companies before they are sent to the Placement Officer."
-            : "Review and verify internship opportunities before making them visible to students."}
+          Review and approve internship and job opportunities before they become visible to students and staff.
         </p>
       </div>
 

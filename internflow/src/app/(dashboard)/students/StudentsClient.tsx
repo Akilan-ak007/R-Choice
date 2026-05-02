@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GraduationCap, Award, CheckSquare, Square, Search, Mail, Download, Eye, X } from "lucide-react";
+import { GraduationCap, Award, CheckSquare, Square, Search, Mail, Download, Eye } from "lucide-react";
 import Link from "next/link";
 
 type StudentRow = {

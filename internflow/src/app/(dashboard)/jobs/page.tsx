@@ -53,7 +53,7 @@ export default async function JobBoardPage() {
     .from(jobApplications)
     .innerJoin(users, eq(jobApplications.studentId, users.id))
     .innerJoin(jobPostings, eq(jobApplications.jobId, jobPostings.id))
-    .leftJoin(companyRegistrations, eq(jobPostings.postedBy, companyRegistrations.userId))
+    .leftJoin(companyRegistrations, eq(jobPostings.companyId, companyRegistrations.id))
     .where(eq(jobApplications.status, "selected"))
     .orderBy(desc(jobApplications.updatedAt));
 

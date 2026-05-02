@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { generateCompanyRegistrationLink } from "@/app/actions/mcr";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id || session.user.role !== "management_corporation") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rateLimit = await enforceRateLimit({
+    namespace: "mcr-generate-link",
+    identifier: session.user.id,
+    limit: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json({ error: "Too many link generations. Please try again later." }, { status: 429 });
   }
 
   let expiryDays = 7;
@@ -14,7 +25,7 @@ export async function POST(req: Request) {
     if (body.expiryDays && typeof body.expiryDays === 'number') {
       expiryDays = body.expiryDays;
     }
-  } catch (e) {
+  } catch {
     // ignore JSON parsing errors and use default
   }
 

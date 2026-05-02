@@ -1,10 +1,11 @@
 import { db } from "@/lib/db";
 import { users, jobPostings, internshipRequests, companyRegistrations, companyStaff } from "@/lib/db/schema";
-import { FileText, Pencil } from "lucide-react";
+import { FileText } from "lucide-react";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import Link from "next/link";
 import CompanyDashboardTabs from "@/components/dashboard/CompanyDashboardTabs";
+import { getCompanyContextForUser } from "@/lib/company-context";
 
 export default async function DashboardCompanyPage() {
   const session = await auth();
@@ -12,58 +13,18 @@ export default async function DashboardCompanyPage() {
 
   if (!userId) return <div>Unauthorized</div>;
 
-  // Get the company's registration record based on role
-  let companyRecord = null;
-  let companyId = null;
-  
-  // First, check if the user has a companyId assigned directly (new unified method)
-  const [userRec] = await db.select({ companyId: users.companyId }).from(users).where(eq(users.id, userId)).limit(1);
-  
-  if (userRec?.companyId) {
-    companyId = userRec.companyId;
-  } else if (session?.user?.role === "company_staff") {
-    // Fallback: look up via companyStaff table (older method)
-    const [staffRec] = await db
-      .select({ companyId: companyStaff.companyId })
-      .from(companyStaff)
-      .where(eq(companyStaff.userId, userId))
-      .limit(1);
-    if (staffRec) companyId = staffRec.companyId;
-  } else {
-    // If CEO (role === 'company') and no users.companyId, look up by userId
-    const [rec] = await db
-      .select({ id: companyRegistrations.id })
-      .from(companyRegistrations)
-      .where(eq(companyRegistrations.userId, userId))
-      .limit(1);
-    companyId = rec?.id;
-  }
+  const companyContext = await getCompanyContextForUser(userId);
+  const companyId = companyContext?.companyId;
+  const [companyRecord] = companyId
+    ? await db.select().from(companyRegistrations).where(eq(companyRegistrations.id, companyId)).limit(1)
+    : [];
 
-  if (companyId) {
-    const [rec] = await db
-      .select()
-      .from(companyRegistrations)
-      .where(eq(companyRegistrations.id, companyId))
-      .limit(1);
-    companyRecord = rec;
-  }
-
-  // Company specific stats
-  // 1. Total jobs posted by this user/company
-  let totalJobs = 0;
-  if (companyId) {
-    const jobsRes = await db
-      .select({ count: sql`count(*)` })
-      .from(jobPostings)
-      .where(eq(jobPostings.companyId, companyId));
-    totalJobs = Number(jobsRes[0].count);
-  } else {
-    const jobsRes = await db
-      .select({ count: sql`count(*)` })
-      .from(jobPostings)
-      .where(eq(jobPostings.postedBy, userId));
-    totalJobs = Number(jobsRes[0].count);
-  }
+  // ── Stats ──
+  const jobsRes = await db
+    .select({ count: sql`count(*)` })
+    .from(jobPostings)
+    .where(eq(jobPostings.companyId, companyId || ""));
+  const totalJobs = Number(jobsRes[0].count);
 
   let totalApplicants = 0;
   let pendingApprovals = 0;
@@ -125,7 +86,7 @@ export default async function DashboardCompanyPage() {
       applicationDeadline: jobPostings.applicationDeadline,
     })
     .from(jobPostings)
-    .where(eq(jobPostings.postedBy, userId))
+    .where(eq(jobPostings.companyId, companyId || ""))
     .orderBy(desc(jobPostings.createdAt));
 
   // Get applicant counts per job
@@ -153,14 +114,9 @@ export default async function DashboardCompanyPage() {
           <h1>Company Workspace</h1>
           <p>Welcome back{companyRecord ? `, ${companyRecord.companyLegalName}` : ""}. Manage your postings, staff, and hiring pipeline.</p>
         </div>
-        <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-          <Link href="/settings" className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-            <Pencil size={16} /> Edit Profile
-          </Link>
-          <Link href="/jobs/create" className="btn btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-            <FileText size={18} /> Post New Opportunity
-          </Link>
-        </div>
+        <Link href="/jobs/create" className="btn btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+          <FileText size={18} /> Post New Opportunity
+        </Link>
       </div>
 
       <CompanyDashboardTabs
@@ -179,7 +135,6 @@ export default async function DashboardCompanyPage() {
           pendingApprovals,
           shortlisted,
         }}
-        isCeo={session?.user?.role === "company"}
       />
     </div>
   );

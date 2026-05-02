@@ -8,23 +8,7 @@ import { initPushNotifications } from "@/lib/pushNotifications";
 import Link from "next/link";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import NotificationsDropdown from "./NotificationsDropdown";
-import {
-  LayoutDashboard,
-  User,
-  FileText,
-  Briefcase,
-  ClipboardCheck,
-  BarChart3,
-  Users,
-  Building2,
-  LogOut,
-  Settings,
-  GraduationCap,
-  GitBranch,
-  CalendarDays,
-  Trophy,
-  Download,
-} from "lucide-react";
+import { LogOut } from "lucide-react";
 import styles from "../../app/(dashboard)/layout.module.css";
 
 import { getNavSections, getMobileNavItems } from "@/config/navigation";

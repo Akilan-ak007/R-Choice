@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { users, internshipRequests, approvalLogs } from "@/lib/db/schema";
-import { Briefcase, Building, Calendar, CheckCircle, MapPin, ExternalLink, MessageSquare, FolderOpen } from "lucide-react";
+import { Building, Calendar, MapPin, ExternalLink, MessageSquare, FolderOpen } from "lucide-react";
 import { eq, desc, inArray } from "drizzle-orm";
 import { format } from "date-fns";
 
@@ -11,6 +11,7 @@ type ApplicationLog = {
   createdAt: Date | string | null;
   approverName: string;
   approverRole: string;
+  tier: number;
 };
 
 export default async function StudentsAppliedPage() {
@@ -45,6 +46,7 @@ export default async function StudentsAppliedPage() {
         createdAt: approvalLogs.createdAt,
         approverName: users.firstName,
         approverRole: users.role,
+        tier: approvalLogs.tier,
       })
       .from(approvalLogs)
       .innerJoin(users, eq(approvalLogs.approverId, users.id))
@@ -153,7 +155,7 @@ export default async function StudentsAppliedPage() {
                       timestampStr = format(new Date(app.submittedAt), "MMM d, yyyy");
                     } else if (tier > 1) {
                       // Find log for this tier (the tier when it was approved is tier - 1)
-                      const logForTier = allLogs.find(l => l.requestId === app.id && (l as any).tier === (tier - 1));
+                      const logForTier = allLogs.find((l) => l.requestId === app.id && l.tier === (tier - 1));
                       if (logForTier && logForTier.createdAt) {
                         timestampStr = format(new Date(logForTier.createdAt), "MMM d, yyyy");
                       }

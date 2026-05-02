@@ -4,12 +4,24 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import cloudinary from "@/lib/cloudinary";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { captureServerError } from "@/lib/observability";
 
 export async function POST(req: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimit = await enforceRateLimit({
+      namespace: "upload-avatar",
+      identifier: session.user.id,
+      limit: 10,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (!rateLimit.success) {
+      return NextResponse.json({ error: "Too many avatar uploads. Please try again later." }, { status: 429 });
     }
 
     const formData = await req.formData();
@@ -53,7 +65,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url: result.secure_url });
   } catch (error) {
-    console.error("Avatar upload error:", error);
+    captureServerError(error, { scope: "avatar-upload-route" });
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 }

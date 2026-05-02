@@ -1,11 +1,9 @@
 import { auth } from "@/lib/auth";
-import { fetchCompanyJobs, deleteJobPosting } from "@/app/actions/jobs";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { fetchCompanyJobs } from "@/app/actions/jobs";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { PlusCircle, Users, Edit, MapPin, Banknote, Clock, Trash2 } from "lucide-react";
+import { PlusCircle, Users, Edit, MapPin, Banknote, Clock } from "lucide-react";
+import { getCompanyContextForUser } from "@/lib/company-context";
 
 export default async function ManageJobsPage() {
   const session = await auth();
@@ -13,13 +11,12 @@ export default async function ManageJobsPage() {
     redirect("/");
   }
 
-  const role = session.user.role;
-  if (role !== "company" && role !== "company_staff") {
+  const companyContext = await getCompanyContextForUser(session.user.id);
+  if (!companyContext) {
     redirect("/");
   }
 
-  const [userRec] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  const jobs = await fetchCompanyJobs(session.user.id, role, userRec?.companyId);
+  const jobs = await fetchCompanyJobs(session.user.id);
 
   return (
     <div className="animate-fade-in">
@@ -75,17 +72,9 @@ export default async function ManageJobsPage() {
                 <Link href={`/applicants?jobId=${job.id}`} className="btn btn-outline" style={{ display: "flex", gap: "6px", flex: 1, justifyContent: "center" }}>
                   <Users size={16} /> View Applicants
                 </Link>
-                <button className="btn btn-ghost" style={{ padding: "8px" }} title="Edit Posting">
+                <Link href={`/jobs/manage/${job.id}`} className="btn btn-ghost" style={{ padding: "8px", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Edit Posting">
                   <Edit size={16} />
-                </button>
-                {/* Only restrict active/approved jobs if needed, but since we allow it in actions for draft/rejected/pending, let's keep it consistent or just allow the server action to reject invalid states. Actually, let's explicitly show it for allowed states. */}
-                {(job.status === "draft" || job.status === "rejected" || job.status === "pending_mcr_approval" || job.status === "pending_review") && (
-                  <form action={deleteJobPosting.bind(null, job.id) as any}>
-                    <button type="submit" className="btn btn-ghost" style={{ padding: "8px", color: "var(--color-danger)" }} title="Delete Job Posting">
-                      <Trash2 size={16} />
-                    </button>
-                  </form>
-                )}
+                </Link>
               </div>
             </div>
           ))}

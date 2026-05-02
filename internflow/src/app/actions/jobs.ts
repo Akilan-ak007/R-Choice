@@ -2,11 +2,31 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { jobPostings, users, auditLogs, deviceTokens, companyRegistrations, notifications } from "@/lib/db/schema";
+import {
+  jobPostings,
+  users,
+  auditLogs,
+  deviceTokens,
+  companyRegistrations,
+  selectionProcessRounds,
+} from "@/lib/db/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sanitize, sanitizeOptional, validateDate, ValidationError } from "@/lib/validation";
 import { sendPushToMultiple } from "@/lib/firebase";
+import { getCompanyContextForUser } from "@/lib/company-context";
+import { syncSelectionRoundCalendarForJob } from "@/lib/calendar-sync";
+
+type RoundPayload = {
+  roundName: string;
+  roundType?: string;
+  startsAt?: string;
+  endsAt?: string;
+  mode?: string;
+  meetLink?: string;
+  location?: string;
+  description?: string;
+};
 
 export async function createJobPosting(formData: FormData) {
   const session = await auth();
@@ -15,7 +35,7 @@ export async function createJobPosting(formData: FormData) {
   }
   
   const allowedRoles = [
-    "company", "company_staff", "tutor", "placement_coordinator", "hod", "dean", 
+    "company", "tutor", "placement_coordinator", "hod", "dean", 
     "placement_officer", "principal", "coe", "placement_head", "management_corporation"
   ];
   const role = session.user.role;
@@ -54,6 +74,29 @@ export async function createJobPosting(formData: FormData) {
     const toolsList = formData.getAll("tools").map(s => String(s).trim()).filter(Boolean);
     const perksList = formData.getAll("perks").map(s => String(s).trim()).filter(Boolean);
     const selectionSteps = formData.getAll("selectionSteps").map(s => String(s).trim()).filter(Boolean);
+    let structuredRounds: RoundPayload[] = [];
+    try {
+      const roundsJson = formData.get("selectionRoundsJson") as string | null;
+      if (roundsJson) {
+        const parsed = JSON.parse(roundsJson);
+        if (Array.isArray(parsed)) {
+          structuredRounds = parsed
+            .map((round) => ({
+              roundName: String(round.roundName || "").trim(),
+              roundType: typeof round.roundType === "string" ? round.roundType : "custom",
+              startsAt: typeof round.startsAt === "string" ? round.startsAt : "",
+              endsAt: typeof round.endsAt === "string" ? round.endsAt : "",
+              mode: typeof round.mode === "string" ? round.mode : "",
+              meetLink: typeof round.meetLink === "string" ? round.meetLink : "",
+              location: typeof round.location === "string" ? round.location : "",
+              description: typeof round.description === "string" ? round.description : "",
+            }))
+            .filter((round) => round.roundName);
+        }
+      }
+    } catch {
+      structuredRounds = [];
+    }
 
     // JSON fields
     let faq = null;
@@ -74,27 +117,21 @@ export async function createJobPosting(formData: FormData) {
       }
     } catch { /* ignore */ }
 
-    // Determine the company record
-    let companyIdToInsert = null;
-    if (role === "company") {
-      const [compReg] = await db
-        .select({ id: companyRegistrations.id })
-        .from(companyRegistrations)
-        .where(eq(companyRegistrations.userId, session.user.id))
-        .limit(1);
-      if (compReg) companyIdToInsert = compReg.id;
-    } else {
-      const [company] = await db
-        .select({ id: companyRegistrations.id })
-        .from(companyRegistrations)
-        .where(eq(companyRegistrations.userId, session.user.id))
-        .limit(1);
-      if (company) companyIdToInsert = company.id;
+    let companyIdToInsert = formData.get("companyId") as string | null;
+    if (!companyIdToInsert) {
+      const companyContext = await getCompanyContextForUser(session.user.id);
+      companyIdToInsert = companyContext?.companyId || null;
     }
 
-    await db.insert(jobPostings).values({
+    if (!companyIdToInsert) {
+      return { error: "A company must be selected before posting a job." };
+    }
+
+    const [insertedJob] = await db.insert(jobPostings).values({
       postedBy: session.user.id,
+      createdByUserId: session.user.id,
       postedByRole: role as typeof jobPostings.$inferInsert.postedByRole,
+      submittedByRole: role as typeof jobPostings.$inferInsert.submittedByRole,
       companyId: companyIdToInsert,
       title,
       jobType: formData.get("jobType") as string || "internship",
@@ -124,14 +161,44 @@ export async function createJobPosting(formData: FormData) {
       faq: faq,
       contactPersons: contactPersons,
       requiredSkills: mandatorySkills.length > 0 ? mandatorySkills : [],
-      status: (role === "management_corporation") ? "approved" 
-            : "pending_mcr_approval",
-    });
+      status: role === "management_corporation" ? "approved" : "pending_mcr_approval",
+    }).returning({ id: jobPostings.id });
+
+    if (insertedJob && (structuredRounds.length > 0 || selectionSteps.length > 0)) {
+      const roundsToInsert: RoundPayload[] = structuredRounds.length > 0
+        ? structuredRounds
+        : selectionSteps.map((step) => ({
+            roundName: step,
+            roundType: "custom",
+            startsAt: "",
+            endsAt: "",
+            mode: "",
+            meetLink: "",
+            location: "",
+            description: "",
+          }));
+
+      await db.insert(selectionProcessRounds).values(
+        roundsToInsert.map((round, index) => ({
+          jobId: insertedJob.id,
+          roundNumber: index + 1,
+          roundName: round.roundName,
+          roundType: round.roundType || "custom",
+          description: round.description || null,
+          startsAt: round.startsAt ? new Date(round.startsAt) : null,
+          endsAt: round.endsAt ? new Date(round.endsAt) : null,
+          mode: round.mode || null,
+          meetLink: round.meetLink || null,
+          location: round.location || null,
+        }))
+      );
+
+      await syncSelectionRoundCalendarForJob(insertedJob.id);
+    }
 
     revalidatePath("/jobs");
     revalidatePath("/jobs/manage");
-    revalidatePath("/approvals/jobs");
-
+    
     return { success: true };
   } catch (error: unknown) {
     if (error instanceof ValidationError) {
@@ -142,17 +209,14 @@ export async function createJobPosting(formData: FormData) {
   }
 }
 
-
-import { sendMobilePush } from "@/lib/notifications";
-
 export async function updateJobStatus(jobId: string, action: "approve" | "reject") {
   const session = await auth();
-  if (!session?.user?.id) return { error: "Not authenticated" };
+  if (!session?.user?.id) {
+    return { error: "Not authenticated" };
+  }
   
   const role = session.user.role;
-  if (!["placement_officer", "coe", "principal", "management_corporation", "placement_head"].includes(role)) {
-    return { error: "Only admins and MCR can approve company jobs." };
-  }
+  
   try {
     const [job] = await db.select().from(jobPostings).where(eq(jobPostings.id, jobId)).limit(1);
     if (!job) return { error: "Job not found" };
@@ -160,62 +224,25 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
     let newStatus = job.status;
     let shouldNotify = false;
     
-    if (role === "management_corporation" && job.status === "pending_mcr_approval") {
-       // MCR approving Company job -> goes to approved directly and notifies others
-       if (action === "approve") {
-          newStatus = "approved";
-          shouldNotify = true;
-       } else {
-          newStatus = "rejected";
-       }
-    } else if (role === "placement_officer" && job.status === "pending_review") {
-       if (action === "approve") {
-          newStatus = "approved";
-       } else {
-          newStatus = "rejected";
-       }
+    if (role === "management_corporation" && (job.status === "pending_mcr_approval" || job.status === "pending_review")) {
+      if (action === "approve") {
+        newStatus = "approved";
+        shouldNotify = true;
+      } else {
+        newStatus = "rejected";
+      }
     } else {
        return { error: "You do not have permission to approve this job at its current stage." };
     }
     
     await db.update(jobPostings)
       .set({ 
-        status: newStatus as any,
+        status: newStatus,
         verifiedBy: session.user.id,
         verifiedByRole: role,
         verifiedAt: new Date()
       })
       .where(eq(jobPostings.id, jobId));
-
-    if (newStatus === "approved") {
-      const [updatedJob] = await db.select().from(jobPostings).where(eq(jobPostings.id, jobId)).limit(1);
-      
-      // 1. Notify Admins
-      const notifyRoles = ["placement_officer"] as const;
-      const targetAdmins = await db.select().from(users).where(inArray(users.role, notifyRoles));
-      
-      if (targetAdmins.length > 0) {
-        await db.insert(notifications).values(
-          targetAdmins.map(admin => ({
-            userId: admin.id,
-            type: "system",
-            title: "New Job Approved",
-            message: `Job ${updatedJob?.title} is now active.`,
-            linkUrl: `/jobs`,
-          }))
-        );
-      }
-
-      // 2. Notify ALL Active Students via Push
-      const students = await db.select({ id: users.id }).from(users).where(eq(users.role, "student"));
-      if (students.length > 0) {
-         await sendMobilePush(
-           "New Internship Available!",
-           `${updatedJob?.title} is now accepting applications. Check your dashboard!`,
-           students.map(s => s.id)
-         );
-      }
-    }
 
     await db.insert(auditLogs).values({
       userId: session.user.id,
@@ -226,13 +253,13 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
     });
 
     if (shouldNotify) {
-      // Find devices for authorities (po)
+      // Find devices for authorities (po, dean, ph, coe, principal)
       const authorityTokens = await db
         .select({ token: deviceTokens.token })
         .from(deviceTokens)
         .innerJoin(users, eq(deviceTokens.userId, users.id))
         .where(
-          inArray(users.role, ["placement_officer"])
+          inArray(users.role, ["placement_officer", "dean", "placement_head", "coe", "principal"])
         );
       
       const authorityTokenList = authorityTokens.map(t => t.token);
@@ -266,15 +293,14 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
     revalidatePath("/approvals/jobs");
     revalidatePath("/jobs");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to update job status:", error);
-    return { error: `Database error occurred: ${error.message || String(error)}` };
+    return { error: "Database error occurred" };
   }
 }
 
 export async function fetchActiveJobs() {
   try {
-    // Alias for the verifier user (separate from the poster)
     const jobs = await db
       .select({
         id: jobPostings.id,
@@ -283,8 +309,8 @@ export async function fetchActiveJobs() {
         location: jobPostings.location,
         stipendInfo: jobPostings.stipendSalary,
         deadline: jobPostings.applicationDeadline,
-        companyName: users.firstName,
-        companyId: jobPostings.postedBy,
+        companyName: companyRegistrations.companyLegalName,
+        companyId: jobPostings.companyId,
         workMode: jobPostings.workMode,
         duration: jobPostings.duration,
         openingsCount: jobPostings.openingsCount,
@@ -295,7 +321,7 @@ export async function fetchActiveJobs() {
         isPpoAvailable: jobPostings.isPpoAvailable,
       })
       .from(jobPostings)
-      .innerJoin(users, eq(jobPostings.postedBy, users.id))
+      .leftJoin(companyRegistrations, eq(jobPostings.companyId, companyRegistrations.id))
       .where(eq(jobPostings.status, "approved"))
       .orderBy(desc(jobPostings.createdAt));
 
@@ -319,59 +345,24 @@ export async function fetchActiveJobs() {
   }
 }
 
-export async function fetchCompanyJobs(userId: string, role: string, companyId?: string | null) {
+export async function fetchCompanyJobs(companyId: string) {
   try {
-    if (role === "company_staff") {
-      return await db
-        .select()
-        .from(jobPostings)
-        .where(eq(jobPostings.postedBy, userId))
-        .orderBy(desc(jobPostings.createdAt));
-    } else if (role === "company" && companyId) {
-      return await db
-        .select()
-        .from(jobPostings)
-        .where(eq(jobPostings.companyId, companyId))
-        .orderBy(desc(jobPostings.createdAt));
-    } else {
-      return [];
+    let resolvedCompanyId = companyId;
+    const companyContext = await getCompanyContextForUser(companyId);
+    if (companyContext?.companyId) {
+      resolvedCompanyId = companyContext.companyId;
     }
+
+    const jobs = await db
+      .select()
+      .from(jobPostings)
+      .where(eq(jobPostings.companyId, resolvedCompanyId))
+      .orderBy(desc(jobPostings.createdAt));
+      
+    return jobs;
   } catch (err) {
     console.error("Failed to fetch company jobs:", err);
     return [];
-  }
-}
-
-export async function deleteJobPosting(jobId: string) {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Not authenticated" };
-
-  try {
-    const [job] = await db.select().from(jobPostings).where(eq(jobPostings.id, jobId)).limit(1);
-    if (!job) return { error: "Job not found" };
-
-    const role = session.user.role;
-    const isOwner = job.postedBy === session.user.id;
-    const [ceo] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-
-    // CEO can delete any job of their company, staff can only delete their own
-    if (role === "company_staff" && !isOwner) {
-      return { error: "You can only delete your own jobs" };
-    }
-    if (role === "company" && job.companyId !== ceo?.companyId) {
-       return { error: "You can only delete jobs belonging to your company" };
-    }
-    
-    if (job.status !== "draft" && job.status !== "rejected" && job.status !== "pending_mcr_approval" && job.status !== "pending_review") {
-      return { error: "Only draft, rejected, or pending jobs can be deleted" };
-    }
-
-    await db.delete(jobPostings).where(eq(jobPostings.id, jobId));
-    revalidatePath("/jobs/manage");
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to delete job:", error);
-    return { error: "Failed to delete job" };
   }
 }
 
@@ -387,9 +378,9 @@ export async function updateJobPosting(jobId: string, formData: FormData) {
     const [job] = await db.select().from(jobPostings).where(eq(jobPostings.id, jobId)).limit(1);
     if (!job) return { error: "Job not found." };
 
-    // Only the posting company or admin roles can edit
-    const isOwner = job.postedBy === session.user.id;
-    const isAdmin = ["placement_officer", "principal"].includes(role);
+    const companyContext = await getCompanyContextForUser(session.user.id);
+    const isOwner = companyContext?.companyId === job.companyId || job.postedBy === session.user.id;
+    const isAdmin = ["dean", "placement_officer", "principal"].includes(role);
 
     if (!isOwner && !isAdmin) {
       return { error: "You do not have permission to edit this job." };
@@ -415,6 +406,73 @@ export async function updateJobPosting(jobId: string, formData: FormData) {
 
     await db.update(jobPostings).set(updatePayload).where(eq(jobPostings.id, jobId));
 
+    const roundNames = formData.getAll("selectionSteps").map((value) => String(value).trim()).filter(Boolean);
+    let structuredRounds: RoundPayload[] = [];
+    try {
+      const roundsJson = formData.get("selectionRoundsJson") as string | null;
+      if (roundsJson) {
+        const parsed = JSON.parse(roundsJson);
+        if (Array.isArray(parsed)) {
+          structuredRounds = parsed
+            .map((round) => ({
+              roundName: String(round.roundName || "").trim(),
+              roundType: typeof round.roundType === "string" ? round.roundType : "custom",
+              startsAt: typeof round.startsAt === "string" ? round.startsAt : "",
+              endsAt: typeof round.endsAt === "string" ? round.endsAt : "",
+              mode: typeof round.mode === "string" ? round.mode : "",
+              meetLink: typeof round.meetLink === "string" ? round.meetLink : "",
+              location: typeof round.location === "string" ? round.location : "",
+              description: typeof round.description === "string" ? round.description : "",
+            }))
+            .filter((round) => round.roundName);
+        }
+      }
+    } catch {
+      structuredRounds = [];
+    }
+
+    if (structuredRounds.length > 0 || roundNames.length > 0) {
+      const existingRounds = await db
+        .select({ id: selectionProcessRounds.id })
+        .from(selectionProcessRounds)
+        .where(eq(selectionProcessRounds.jobId, jobId));
+
+      await db.delete(selectionProcessRounds).where(eq(selectionProcessRounds.jobId, jobId));
+      const roundsToInsert: RoundPayload[] = structuredRounds.length > 0
+        ? structuredRounds
+        : roundNames.map((roundName) => ({
+            roundName,
+            roundType: "custom",
+            startsAt: "",
+            endsAt: "",
+            mode: "",
+            meetLink: "",
+            location: "",
+            description: "",
+          }));
+      await db.insert(selectionProcessRounds).values(
+        roundsToInsert.map((round, index) => ({
+          jobId,
+          roundNumber: index + 1,
+          roundName: round.roundName,
+          roundType: round.roundType || "custom",
+          description: round.description || null,
+          startsAt: round.startsAt ? new Date(round.startsAt) : null,
+          endsAt: round.endsAt ? new Date(round.endsAt) : null,
+          mode: round.mode || null,
+          meetLink: round.meetLink || null,
+          location: round.location || null,
+        }))
+      );
+
+      await syncSelectionRoundCalendarForJob(
+        jobId,
+        existingRounds.map((round) => round.id)
+      );
+    } else {
+      await syncSelectionRoundCalendarForJob(jobId);
+    }
+
     revalidatePath("/jobs");
     revalidatePath("/jobs/manage");
     revalidatePath(`/approvals/jobs`);
@@ -422,72 +480,5 @@ export async function updateJobPosting(jobId: string, formData: FormData) {
   } catch (error: unknown) {
     console.error("Job update error:", error);
     return { error: `Failed to update job: ${error instanceof Error ? error.message : String(error)}` };
-  }
-}
-
-export async function getFullJobDetails(jobId: string) {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Not authenticated" };
-
-  try {
-    const [job] = await db.select().from(jobPostings).where(eq(jobPostings.id, jobId)).limit(1);
-    if (!job) return { error: "Job not found" };
-
-    const [poster] = await db.select({ firstName: users.firstName, lastName: users.lastName })
-      .from(users).where(eq(users.id, job.postedBy)).limit(1);
-
-    let company = null;
-    if (job.companyId) {
-      const [c] = await db.select().from(companyRegistrations).where(eq(companyRegistrations.id, job.companyId)).limit(1);
-      company = c ? {
-        id: c.id,
-        companyLegalName: c.companyLegalName,
-        brandName: c.brandName,
-        industrySector: c.industrySector,
-        website: c.website,
-        logoUrl: c.logoUrl,
-        city: c.city,
-        state: c.state,
-        companySize: c.companySize,
-        companyDescription: c.companyDescription,
-      } : null;
-    }
-
-    return {
-      job: {
-        id: job.id,
-        title: job.title,
-        description: job.description,
-        responsibilities: job.responsibilities,
-        learnings: job.learnings,
-        location: job.location,
-        workMode: job.workMode,
-        duration: job.duration,
-        stipendSalary: job.stipendSalary,
-        openingsCount: job.openingsCount,
-        applicationDeadline: job.applicationDeadline,
-        startDate: job.startDate,
-        interviewMode: job.interviewMode,
-        jobType: job.jobType,
-        isPpoAvailable: job.isPpoAvailable,
-        isCampusHiring: job.isCampusHiring,
-        requiredSkills: job.requiredSkills,
-        mandatorySkills: job.mandatorySkills,
-        preferredSkills: job.preferredSkills,
-        tools: job.tools,
-        perks: job.perks,
-        selectionRounds: job.selectionRounds,
-        selectionProcessSteps: job.selectionProcessSteps,
-        preferredQualifications: job.preferredQualifications,
-        minCgpa: job.minCgpa,
-        faq: job.faq,
-        domain: job.domain,
-      },
-      company,
-      poster: poster ? `${poster.firstName} ${poster.lastName}` : "Staff",
-    };
-  } catch (err) {
-    console.error("Failed to fetch job details:", err);
-    return { error: "Failed to load job details" };
   }
 }

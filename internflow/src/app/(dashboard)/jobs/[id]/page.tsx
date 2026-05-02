@@ -1,10 +1,10 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { jobPostings, users, companyRegistrations } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { jobPostings, users, companyRegistrations, selectionProcessRounds } from "@/lib/db/schema";
+import { eq, asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { MapPin, Clock, Banknote, Users, Briefcase, Calendar, Building2, ArrowLeft, CheckCircle2, Video } from "lucide-react";
+import { MapPin, Clock, Banknote, Building2, ArrowLeft, Video } from "lucide-react";
 
 export default async function JobDetailPage({ params }: { params: { id: string } }) {
   const session = await auth();
@@ -40,7 +40,22 @@ export default async function JobDetailPage({ params }: { params: { id: string }
     company = c;
   }
 
-  const selectionRounds = (job.selectionRounds as { round: string; date?: string; meetLink?: string }[] | null) || [];
+  const rounds = await db
+    .select({
+      id: selectionProcessRounds.id,
+      roundNumber: selectionProcessRounds.roundNumber,
+      roundName: selectionProcessRounds.roundName,
+      roundType: selectionProcessRounds.roundType,
+      startsAt: selectionProcessRounds.startsAt,
+      endsAt: selectionProcessRounds.endsAt,
+      mode: selectionProcessRounds.mode,
+      meetLink: selectionProcessRounds.meetLink,
+      location: selectionProcessRounds.location,
+      description: selectionProcessRounds.description,
+    })
+    .from(selectionProcessRounds)
+    .where(eq(selectionProcessRounds.jobId, job.id))
+    .orderBy(asc(selectionProcessRounds.roundNumber));
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: "900px" }}>
@@ -120,21 +135,27 @@ export default async function JobDetailPage({ params }: { params: { id: string }
         )}
 
         {/* Selection Rounds */}
-        {selectionRounds.length > 0 && (
+        {rounds.length > 0 && (
           <div style={{ marginBottom: "var(--space-5)" }}>
             <h3 style={{ marginBottom: "var(--space-3)" }}>Selection Process</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {selectionRounds.map((r, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+              {rounds.map((round) => (
+                <div key={round.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
                   <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "var(--primary-color)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, flexShrink: 0 }}>
-                    {i + 1}
+                    {round.roundNumber}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: "0.9rem" }}>{r.round}</p>
-                    {r.date && <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-secondary)" }}>{new Date(r.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>}
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: "0.9rem" }}>{round.roundName}</p>
+                    <div style={{ marginTop: "4px", fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                      <span>{(round.roundType || "custom").replace(/_/g, " ")}</span>
+                      {round.mode && <span>{round.mode}</span>}
+                      {round.startsAt && <span>{new Date(round.startsAt).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}</span>}
+                      {round.location && <span>{round.location}</span>}
+                    </div>
+                    {round.description && <p style={{ margin: "6px 0 0 0", fontSize: "0.8rem", color: "var(--text-secondary)" }}>{round.description}</p>}
                   </div>
-                  {r.meetLink && (
-                    <a href={r.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.8rem", padding: "6px 12px", display: "inline-flex", gap: "4px" }}>
+                  {round.meetLink && (
+                    <a href={round.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.8rem", padding: "6px 12px", display: "inline-flex", gap: "4px" }}>
                       <Video size={14} /> Join
                     </a>
                   )}

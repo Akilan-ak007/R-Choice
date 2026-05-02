@@ -5,23 +5,9 @@ import { users } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { authConfig } from "./auth.config";
+import { enforceRateLimit } from "./rate-limit";
 
 type UserRole = (typeof users.$inferSelect)["role"];
-
-// Simple in-memory rate limiter to prevent brute force at the API level
-const rateLimitMap = new Map<string, { count: number; expiresAt: number }>();
-
-function checkRateLimit(email: string) {
-  const now = Date.now();
-  const record = rateLimitMap.get(email);
-  if (record && record.expiresAt > now) {
-    if (record.count >= 10) return false;
-    record.count += 1;
-    return true;
-  }
-  rateLimitMap.set(email, { count: 1, expiresAt: now + 5 * 60 * 1000 }); // 5 minutes
-  return true;
-}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -41,7 +27,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = credentials.password as string;
         const role = credentials.role as UserRole;
 
-        if (!checkRateLimit(email)) {
+        const rateLimit = await enforceRateLimit({
+          namespace: "auth-login",
+          identifier: `${email}:${role}`,
+          limit: 10,
+          windowMs: 5 * 60 * 1000,
+        });
+
+        if (!rateLimit.success) {
           console.warn(`[AUTH] Rate limit exceeded for email: ${email}`);
           throw new Error("Too many login attempts. Please try again later.");
         }

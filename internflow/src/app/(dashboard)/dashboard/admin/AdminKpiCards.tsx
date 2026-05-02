@@ -8,18 +8,20 @@ interface AdminKpiProps {
   activeStudents: number;
   totalCompanies: number;
   placementRate: number;
+  slaBreaches: number;
 }
 
-export function AdminKpiCards({ pendingApprovals, activeStudents, totalCompanies, placementRate }: AdminKpiProps) {
+export function AdminKpiCards({ pendingApprovals, activeStudents, totalCompanies, placementRate, slaBreaches }: AdminKpiProps) {
   const kpiData = [
     { label: "Pending Approvals", value: pendingApprovals, icon: <CheckCircle size={22} />, color: "var(--color-warning)", gradient: "var(--gradient-warm)" },
+    { label: "SLA Breaches", value: slaBreaches, icon: <CheckCircle size={22} />, color: "#dc2626", gradient: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" },
     { label: "Active Students", value: activeStudents, icon: <Users size={22} />, color: "var(--color-info)", gradient: "var(--gradient-accent)" },
     { label: "Companies", value: totalCompanies, icon: <Building2 size={22} />, color: "var(--color-primary)", gradient: "var(--gradient-primary)" },
     { label: "Placement Rate", value: placementRate, icon: <TrendingUp size={22} />, color: "var(--rathinam-green)", gradient: "var(--gradient-success)", suffix: "%" },
   ];
 
   return (
-    <div className="grid grid-4" style={{ marginBottom: "var(--space-6)" }}>
+    <div style={{ marginBottom: "var(--space-6)", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--space-4)" }}>
       {kpiData.map((kpi, idx) => (
         <div
           key={kpi.label}

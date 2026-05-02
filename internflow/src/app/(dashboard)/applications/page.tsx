@@ -1,11 +1,20 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { internshipRequests, approvalLogs, users } from "@/lib/db/schema";
-import { eq, desc, inArray } from "drizzle-orm";
+import {
+  internshipRequests,
+  approvalLogs,
+  users,
+  companyRegistrations,
+  jobApplicationRoundProgress,
+  jobApplications,
+  jobPostings,
+  selectionProcessRounds,
+} from "@/lib/db/schema";
+import { eq, desc, inArray, asc } from "drizzle-orm";
 import { format } from "date-fns";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { PlusCircle, ExternalLink, Calendar, MapPin, Building2, FolderOpen, MessageSquare } from "lucide-react";
+import { PlusCircle, ExternalLink, Calendar, MapPin, Building2, FolderOpen, MessageSquare, CheckCircle2, Milestone, ShieldCheck, Clock } from "lucide-react";
 
 type ApplicationLog = {
   requestId: string;
@@ -14,6 +23,24 @@ type ApplicationLog = {
   createdAt: Date | string | null;
   approverName: string;
   approverRole: string;
+  tier: number;
+};
+
+type SelectionTimelineItem = {
+  appId: string;
+  jobTitle: string;
+  companyName: string | null;
+  applicationStatus: string | null;
+  currentRound: {
+    roundNumber: number;
+    roundName: string;
+    startsAt: Date | null;
+  } | null;
+  clearedRounds: Array<{
+    roundNumber: number;
+    roundName: string;
+    reviewedAt: Date | null;
+  }>;
 };
 
 export default async function ApplicationsPage() {
@@ -23,6 +50,8 @@ export default async function ApplicationsPage() {
   }
 
   const userId = session.user.id;
+  let selectedAwaitingOd: { appId: string; jobTitle: string; companyName: string | null }[] = [];
+  let selectionTimeline: SelectionTimelineItem[] = [];
   
   // Fetch their applications
   const applications = await db
@@ -42,12 +71,85 @@ export default async function ApplicationsPage() {
         createdAt: approvalLogs.createdAt,
         approverName: users.firstName,
         approverRole: users.role,
+        tier: approvalLogs.tier,
       })
       .from(approvalLogs)
       .innerJoin(users, eq(approvalLogs.approverId, users.id))
       .where(inArray(approvalLogs.requestId, appIds))
       .orderBy(desc(approvalLogs.createdAt));
   }
+
+  const myJobApps = await db
+    .select({
+      appId: jobApplications.id,
+      status: jobApplications.status,
+      jobTitle: jobPostings.title,
+      companyName: companyRegistrations.companyLegalName,
+    })
+    .from(jobApplications)
+    .innerJoin(jobPostings, eq(jobPostings.id, jobApplications.jobId))
+    .leftJoin(companyRegistrations, eq(companyRegistrations.id, jobPostings.companyId))
+    .where(eq(jobApplications.studentId, userId));
+
+  selectedAwaitingOd = myJobApps
+    .filter((app) => app.status === "selected")
+    .map((app) => ({
+      appId: app.appId,
+      jobTitle: app.jobTitle,
+      companyName: app.companyName,
+    }));
+
+  const roundProgressRows = await db
+    .select({
+      appId: jobApplications.id,
+      applicationStatus: jobApplications.status,
+      jobTitle: jobPostings.title,
+      companyName: companyRegistrations.companyLegalName,
+      roundNumber: selectionProcessRounds.roundNumber,
+      roundName: selectionProcessRounds.roundName,
+      startsAt: selectionProcessRounds.startsAt,
+      progressStatus: jobApplicationRoundProgress.status,
+      reviewedAt: jobApplicationRoundProgress.reviewedAt,
+    })
+    .from(jobApplicationRoundProgress)
+    .innerJoin(jobApplications, eq(jobApplications.id, jobApplicationRoundProgress.applicationId))
+    .innerJoin(selectionProcessRounds, eq(selectionProcessRounds.id, jobApplicationRoundProgress.roundId))
+    .innerJoin(jobPostings, eq(jobPostings.id, jobApplications.jobId))
+    .leftJoin(companyRegistrations, eq(companyRegistrations.id, jobPostings.companyId))
+    .where(eq(jobApplications.studentId, userId))
+    .orderBy(asc(selectionProcessRounds.roundNumber));
+
+  const timelineMap = new Map<string, SelectionTimelineItem>();
+  for (const row of roundProgressRows) {
+    const existing = timelineMap.get(row.appId) || {
+      appId: row.appId,
+      jobTitle: row.jobTitle,
+      companyName: row.companyName,
+      applicationStatus: row.applicationStatus,
+      currentRound: null,
+      clearedRounds: [],
+    };
+
+    if (row.progressStatus === "scheduled") {
+      existing.currentRound = {
+        roundNumber: row.roundNumber,
+        roundName: row.roundName,
+        startsAt: row.startsAt,
+      };
+    }
+
+    if (row.progressStatus === "cleared") {
+      existing.clearedRounds.push({
+        roundNumber: row.roundNumber,
+        roundName: row.roundName,
+        reviewedAt: row.reviewedAt,
+      });
+    }
+
+    timelineMap.set(row.appId, existing);
+  }
+
+  selectionTimeline = Array.from(timelineMap.values());
 
   // Create a map to grab the latest log for each application
   const latestLogsMap = allLogs.reduce<Record<string, ApplicationLog>>((acc, log) => {
@@ -63,7 +165,10 @@ export default async function ApplicationsPage() {
       pending_tutor: { label: "Pending Tutor", cls: "badge-pending" },
       pending_coordinator: { label: "Pending Coordinator", cls: "badge-pending" },
       pending_hod: { label: "Pending HOD", cls: "badge-pending" },
-      pending_admin: { label: "Pending Admin", cls: "badge-pending" },
+      pending_dean: { label: "Pending Dean", cls: "badge-pending" },
+      pending_po: { label: "Pending Placement Officer", cls: "badge-pending" },
+      pending_coe: { label: "Pending COE", cls: "badge-pending" },
+      pending_principal: { label: "Pending Principal", cls: "badge-pending" },
       approved: { label: "Approved", cls: "badge-success" },
       rejected: { label: "Rejected", cls: "badge-danger" },
       returned: { label: "Needs Revision", cls: "badge-warning" },
@@ -77,13 +182,110 @@ export default async function ApplicationsPage() {
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1>My Applications</h1>
-          <p>Track your internship approval status.</p>
+          <p>Track your selection journey, OD approval status, and active internship workflows.</p>
         </div>
         <Link href="/applications/new" className="btn btn-primary" style={{ display: "flex", gap: "8px" }}>
           <PlusCircle size={18} />
           External OD Request
         </Link>
       </div>
+
+      {(selectionTimeline.length > 0 || selectedAwaitingOd.length > 0) && (
+        <div style={{ display: "grid", gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
+          {selectedAwaitingOd.length > 0 && (
+            <div className="card" style={{ padding: "var(--space-5)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <ShieldCheck size={18} color="#6366f1" />
+                <h2 style={{ margin: 0, fontSize: "1.05rem" }}>Selected and waiting for Placement Officer</h2>
+              </div>
+              <div style={{ display: "grid", gap: "12px" }}>
+                {selectedAwaitingOd.map((app) => (
+                  <div key={app.appId} style={{ padding: "14px", borderRadius: "10px", background: "rgba(99, 102, 241, 0.08)", border: "1px solid rgba(99, 102, 241, 0.18)" }}>
+                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>{app.jobTitle}</div>
+                    <div style={{ color: "var(--text-secondary)", marginBottom: "8px" }}>{app.companyName || "Company"}</div>
+                    <div style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+                      Final company results are published. Once Placement Officer raises OD, this internship will appear in the approval tracker below.
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectionTimeline.length > 0 && (
+            <div className="card" style={{ padding: "var(--space-5)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+                <Milestone size={18} color="#8b5cf6" />
+                <h2 style={{ margin: 0, fontSize: "1.05rem" }}>Selection Rounds</h2>
+              </div>
+              <div style={{ display: "grid", gap: "var(--space-4)" }}>
+                {selectionTimeline.map((item) => (
+                  <div key={item.appId} style={{ padding: "16px", borderRadius: "12px", border: "1px solid var(--border-color)", background: "var(--bg-secondary)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", marginBottom: "14px" }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "1rem", marginBottom: "4px" }}>{item.jobTitle}</div>
+                        <div style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>{item.companyName || "Company"}</div>
+                      </div>
+                      <div className={`badge ${item.applicationStatus === "selected" ? "badge-success" : "badge-pending"}`}>
+                        {item.applicationStatus === "selected" ? "Final Result Published" : item.currentRound ? "Round In Progress" : "In Selection"}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
+                      {item.currentRound ? (
+                        <div style={{ padding: "14px", borderRadius: "10px", border: "1px solid rgba(139, 92, 246, 0.35)", background: "rgba(139, 92, 246, 0.08)" }}>
+                          <div style={{ fontSize: "0.75rem", color: "#8b5cf6", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
+                            Current Round
+                          </div>
+                          <div style={{ fontWeight: 700, marginBottom: "4px" }}>
+                            Round {item.currentRound.roundNumber}: {item.currentRound.roundName}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                            <Clock size={14} color="#8b5cf6" />
+                            <span>
+                              {item.currentRound.startsAt ? new Date(item.currentRound.startsAt).toLocaleString("en-IN") : "Scheduled timing will appear in your calendar."}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color)", background: "var(--bg-primary)" }}>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
+                            Current State
+                          </div>
+                          <div style={{ fontWeight: 700, marginBottom: "4px" }}>Waiting for company update</div>
+                          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                            You have no active scheduled round at the moment.
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color)", background: "var(--bg-primary)" }}>
+                        <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
+                          Cleared Rounds
+                        </div>
+                        {item.clearedRounds.length === 0 ? (
+                          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>No round has been marked as cleared yet.</div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                            {item.clearedRounds.map((round) => (
+                              <div key={`${item.appId}-${round.roundNumber}`} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem" }}>
+                                <CheckCircle2 size={14} color="#22c55e" />
+                                <span>
+                                  Round {round.roundNumber}: {round.roundName}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {applications.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: "var(--space-8)" }}>
@@ -111,6 +313,12 @@ export default async function ApplicationsPage() {
                 <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><MapPin size={14} /> {app.workMode}</span>
                 <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><Calendar size={14} /> {app.startDate} - {app.endDate}</span>
               </div>
+
+              {String(app.status).startsWith("pending_") && (
+                <div style={{ marginBottom: "var(--space-3)", padding: "10px 12px", borderRadius: "8px", background: "rgba(14, 165, 233, 0.08)", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
+                  This On-Duty approval is active and currently waiting for the assigned authority tier.
+                </div>
+              )}
               
               {String(app.status) === "approved" && (
                 <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "var(--space-4)", display: "flex", justifyContent: "flex-end" }}>
@@ -153,7 +361,7 @@ export default async function ApplicationsPage() {
                     } else if (tier > 1) {
                       // Find log for this tier (the tier when it was approved is tier - 1)
                       // e.g. Tutor approved when tier was 1, so log.tier === 1
-                      const logForTier = allLogs.find(l => l.requestId === app.id && (l as any).tier === (tier - 1));
+                      const logForTier = allLogs.find((l) => l.requestId === app.id && l.tier === (tier - 1));
                       if (logForTier && logForTier.createdAt) {
                         timestampStr = format(new Date(logForTier.createdAt), "MMM d, yyyy");
                       }
@@ -181,7 +389,6 @@ export default async function ApplicationsPage() {
                          labelColor = "var(--text-primary)";
                       }
                     }
-
                     return (
                       <div key={label} className="progress-step" style={{ flexBasis: "14%" }}>
                         <div className="step-dot" style={dotStyle}></div>

@@ -5,7 +5,6 @@
  */
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import * as schema from "../src/lib/db/schema";
 import * as dotenv from "dotenv";
@@ -32,7 +31,7 @@ async function warmupConnection() {
       await sql`SELECT 1`;
       console.log("Database connected!");
       return;
-    } catch (e) {
+    } catch {
       console.log(`Database cold start, retrying in 3 seconds... (${retries} attempts left)`);
       retries--;
       await new Promise(resolve => setTimeout(resolve, 3000));

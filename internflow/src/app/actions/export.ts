@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users, studentProfiles, internshipRequests, jobApplications, jobPostings } from "@/lib/db/schema";
+import { users, studentProfiles, internshipRequests } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 const EXPORT_ROLES = ["tutor", "placement_coordinator", "hod", "dean", "placement_officer", "coe", "management_corporation", "principal", "company", "company_staff"];

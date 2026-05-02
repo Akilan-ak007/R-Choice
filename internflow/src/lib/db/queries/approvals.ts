@@ -108,6 +108,8 @@ export async function getFilteredRequestsForStaff(userId: string, role: string, 
       submittedAt: internshipRequests.submittedAt,
       updatedAt: internshipRequests.updatedAt,
       currentTier: internshipRequests.currentTier,
+      currentTierEnteredAt: internshipRequests.currentTierEnteredAt,
+      currentTierSlaHours: internshipRequests.currentTierSlaHours,
       studentName: users.firstName,
     })
     .from(internshipRequests)

@@ -14,6 +14,7 @@ type InterviewAlert = {
 export default function InterviewPopup({ alerts }: { alerts: InterviewAlert[] }) {
   const [visible, setVisible] = useState<InterviewAlert | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     const checkAlerts = () => {
@@ -26,13 +27,17 @@ export default function InterviewPopup({ alerts }: { alerts: InterviewAlert[] })
         // Show popup if interview is within 15 minutes
         if (diffMin > 0 && diffMin <= 15 && !dismissed.has(alert.date + alert.round)) {
           setVisible(alert);
+          setNowMs(now.getTime());
           return;
         }
       }
     };
 
     checkAlerts();
-    const interval = setInterval(checkAlerts, 30000); // check every 30s
+    const interval = setInterval(() => {
+      setNowMs(Date.now());
+      checkAlerts();
+    }, 30000); // check every 30s
     return () => clearInterval(interval);
   }, [alerts, dismissed]);
 
@@ -43,11 +48,7 @@ export default function InterviewPopup({ alerts }: { alerts: InterviewAlert[] })
     setVisible(null);
   };
 
-  const timeUntil = () => {
-    const diff = new Date(visible.date).getTime() - Date.now();
-    const mins = Math.max(0, Math.floor(diff / 60000));
-    return mins;
-  };
+  const minutesUntil = Math.max(0, Math.floor((new Date(visible.date).getTime() - nowMs) / 60000));
 
   return (
     <div style={{
@@ -90,7 +91,7 @@ export default function InterviewPopup({ alerts }: { alerts: InterviewAlert[] })
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "8px", background: "rgba(245,158,11,0.1)", color: "#f59e0b", fontWeight: 600, fontSize: "0.85rem", marginBottom: "14px" }}>
           <Clock size={16} />
-          Starts in {timeUntil()} minute{timeUntil() !== 1 ? "s" : ""}
+          Starts in {minutesUntil} minute{minutesUntil !== 1 ? "s" : ""}
         </div>
 
         <a

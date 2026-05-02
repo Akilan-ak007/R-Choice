@@ -1,26 +1,46 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { companyRegistrations } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { Building, CheckCircle, XCircle, Clock, Globe, Mail, Phone, RotateCcw, FileText, Users, Download } from "lucide-react";
+import { Building, CheckCircle, XCircle, Clock, Globe, Mail, Phone, RotateCcw, FileText, Users } from "lucide-react";
 import { ExportCompanyDocs } from "./ExportButtons";
-
-import { reviewCompany } from "@/app/actions/companyReview";
+import { reviewCompanyRegistration } from "@/app/actions/mcr";
+import { getMailDeliveryMode } from "@/lib/mail";
 
 export default async function CompanyReviewPage() {
   const session = await auth();
   const role = session?.user?.role;
   
-  if (!role || !["dean", "placement_officer", "principal", "coe", "management_corporation", "placement_head"].includes(role)) {
+  if (role !== "management_corporation") {
     redirect("/");
   }
 
   const registrations = await db.select().from(companyRegistrations).orderBy(companyRegistrations.createdAt);
+  const mailDeliveryMode = getMailDeliveryMode();
 
+  async function reviewCompany(formData: FormData) {
+    "use server";
+    const session = await auth();
+    if (!session?.user?.id) return;
+    if (session.user.role !== "management_corporation") return;
 
-  const pending = registrations.filter(r => r.status === "pending" || r.status === "info_requested");
+    const id = formData.get("id") as string;
+    const action = formData.get("action") as string;
+    const comment = formData.get("comment") as string;
+    await reviewCompanyRegistration(
+      id,
+      action as "approve" | "reject" | "reconsider" | "info_requested",
+      comment
+    );
+
+    revalidatePath("/companies/review");
+  }
+
+  const pending = registrations.filter(r => {
+    const status = r.status || "pending";
+    return ["pending", "registration_submitted", "under_review", "info_requested"].includes(status);
+  });
   const reviewed = registrations.filter(r => r.status === "approved" || r.status === "rejected");
 
   return (
@@ -29,6 +49,15 @@ export default async function CompanyReviewPage() {
         <h1>Company Registration Review</h1>
         <p>Review and approve, reject, or request more info for company registration applications.</p>
       </div>
+
+      {mailDeliveryMode !== "smtp" && (
+        <div className="card" style={{ marginBottom: "var(--space-5)", padding: "var(--space-4)", background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.2)" }}>
+          <div style={{ fontWeight: 700, marginBottom: "6px", color: "#b45309" }}>Manual Credential Handoff Mode</div>
+          <div style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: 1.6 }}>
+            SMTP delivery is disabled right now. When you approve a company, the temporary login credentials will be stored in your dashboard notifications for manual sharing.
+          </div>
+        </div>
+      )}
 
       {pending.length === 0 && reviewed.length === 0 && (
         <div className="card" style={{ textAlign: "center", padding: "var(--space-12)", color: "var(--text-secondary)" }}>
@@ -52,7 +81,7 @@ export default async function CompanyReviewPage() {
                     {reg.brandName && <div style={{ color: "var(--text-secondary)", marginBottom: "var(--space-1)" }}>Brand: {reg.brandName}</div>}
                   </div>
                   <span className={`status-pill ${reg.status === "info_requested" ? "status-pending" : "status-pending"}`}>
-                    {reg.status === "info_requested" ? "Info Requested" : "Pending"}
+                    {reg.status === "info_requested" ? "Info Requested" : reg.status === "under_review" ? "Under Review" : "Pending"}
                   </span>
                 </div>
 
@@ -60,10 +89,10 @@ export default async function CompanyReviewPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: "var(--space-3)", marginBottom: "var(--space-4)" }}>
                   <DetailCell icon={<FileText size={14} />} label="Industry Sector" value={reg.industrySector} />
                   <DetailCell icon={<Globe size={14} />} label="Website" value={reg.website} isLink />
-                  <DetailCell icon={<Mail size={14} />} label="Company Email" value={reg.hrEmail} />
-                  <DetailCell icon={<Phone size={14} />} label="Contact" value={reg.hrPhone} />
-                  <DetailCell icon={<Users size={14} />} label="CEO/Founder" value={(reg.founderDetails as any)?.name || reg.hrName} />
-                  <DetailCell icon={<FileText size={14} />} label="COI" value={reg.coiUrl || "Not Provided"} isLink={!!reg.coiUrl} />
+                  <DetailCell icon={<Mail size={14} />} label="HR Email" value={reg.hrEmail} />
+                  <DetailCell icon={<Phone size={14} />} label="HR Phone" value={reg.hrPhone} />
+                  <DetailCell icon={<Users size={14} />} label="HR Contact" value={reg.hrName} />
+
                 </div>
 
                 {/* Previous review comment if info was requested */}
@@ -74,7 +103,7 @@ export default async function CompanyReviewPage() {
                 )}
 
                 {/* Action form with comment box */}
-                <form action={reviewCompany as any} style={{ marginTop: "var(--space-2)" }}>
+                <form action={reviewCompany} style={{ marginTop: "var(--space-2)" }}>
                   <input type="hidden" name="id" value={reg.id} />
                   <div style={{ marginBottom: "var(--space-3)" }}>
                     <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
@@ -126,7 +155,7 @@ export default async function CompanyReviewPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
                     <span className={`status-pill ${reg.status === "approved" ? "status-approved" : "status-rejected"}`}>{reg.status}</span>
                     {/* Reconsider button for reviewed items */}
-                    <form action={reviewCompany as any} style={{ display: "inline" }}>
+                    <form action={reviewCompany} style={{ display: "inline" }}>
                       <input type="hidden" name="id" value={reg.id} />
                       <input type="hidden" name="action" value="reconsider" />
                       <input type="hidden" name="comment" value="Moved back for re-review" />
