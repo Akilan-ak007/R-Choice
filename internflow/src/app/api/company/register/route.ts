@@ -12,6 +12,15 @@ import {
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { captureServerError } from "@/lib/observability";
 
+function asTrimmedString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function asOptionalString(value: unknown) {
+  const normalized = asTrimmedString(value);
+  return normalized || null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -48,6 +57,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid or expired registration link" }, { status: 400 });
     }
 
+    const normalizedCompanyData = {
+      companyLegalName: asTrimmedString(companyData.companyLegalName),
+      brandName: asOptionalString(companyData.brandName),
+      companyDescription: asOptionalString(companyData.companyDescription),
+      companyType: asTrimmedString(companyData.companyType),
+      industrySector: asTrimmedString(companyData.industrySector),
+      yearEstablished: asTrimmedString(companyData.yearEstablished),
+      companySize: asOptionalString(companyData.companySize),
+      website: asTrimmedString(companyData.website),
+      address: asTrimmedString(companyData.address),
+      city: asTrimmedString(companyData.city),
+      state: asTrimmedString(companyData.state),
+      pinCode: asTrimmedString(companyData.pinCode),
+      hrName: asTrimmedString(companyData.hrName),
+      hrEmail: asTrimmedString(companyData.hrEmail),
+      hrPhone: asTrimmedString(companyData.hrPhone),
+      altPhone: asOptionalString(companyData.altPhone),
+      gstNumber: asOptionalString(companyData.gstNumber),
+      panNumber: asOptionalString(companyData.panNumber),
+      cinLlpin: asOptionalString(companyData.cinLlpin),
+      coi: asOptionalString(companyData.coi),
+      ceoName: asTrimmedString(companyData.ceoName),
+      ceoDesignation: asTrimmedString(companyData.ceoDesignation),
+      ceoEmail: asTrimmedString(companyData.ceoEmail),
+      ceoPhone: asOptionalString(companyData.ceoPhone),
+      ceoLinkedin: asOptionalString(companyData.ceoLinkedin),
+      ceoPortfolio: asOptionalString(companyData.ceoPortfolio),
+      internshipType: asOptionalString(companyData.internshipType),
+      domains: asTrimmedString(companyData.domains),
+      duration: asOptionalString(companyData.duration),
+      stipendRange: asOptionalString(companyData.stipendRange),
+      hiringIntention: asOptionalString(companyData.hiringIntention),
+      generalTcAccepted:
+        companyData.generalTcAccepted === true || companyData.generalTcAccepted === "true",
+    };
+
     const requiredFields = [
       "companyLegalName",
       "companyType",
@@ -63,10 +108,10 @@ export async function POST(req: NextRequest) {
       "ceoName",
       "ceoDesignation",
       "ceoEmail",
-    ];
+    ] as const;
 
     for (const field of requiredFields) {
-      if (!companyData[field]) {
+      if (!normalizedCompanyData[field]) {
         return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 });
       }
     }
@@ -75,6 +120,17 @@ export async function POST(req: NextRequest) {
     let wasUpdated = false;
 
     await db.transaction(async (tx) => {
+      const matchingConditions = [
+        and(
+          eq(companyRegistrations.companyLegalName, normalizedCompanyData.companyLegalName),
+          eq(companyRegistrations.hrEmail, normalizedCompanyData.hrEmail)
+        ),
+      ];
+
+      if (normalizedCompanyData.ceoEmail) {
+        matchingConditions.push(eq(companyRegistrations.ceoEmail, normalizedCompanyData.ceoEmail));
+      }
+
       const [existingRegistration] = await tx
         .select({
           id: companyRegistrations.id,
@@ -82,54 +138,46 @@ export async function POST(req: NextRequest) {
           userId: companyRegistrations.userId,
         })
         .from(companyRegistrations)
-        .where(
-          or(
-            and(
-              eq(companyRegistrations.companyLegalName, companyData.companyLegalName),
-              eq(companyRegistrations.hrEmail, companyData.hrEmail)
-            ),
-            eq(companyRegistrations.ceoEmail, companyData.ceoEmail)
-          )
-        )
+        .where(matchingConditions.length === 1 ? matchingConditions[0] : or(...matchingConditions))
         .limit(1);
 
       const registrationPayload = {
-        companyLegalName: companyData.companyLegalName,
-        brandName: companyData.brandName || null,
-        companyDescription: companyData.companyDescription || null,
-        companyType: companyData.companyType,
-        industrySector: companyData.industrySector,
-        yearEstablished: companyData.yearEstablished ? parseInt(companyData.yearEstablished, 10) : null,
-        companySize: companyData.companySize || null,
-        website: companyData.website,
-        address: companyData.address,
-        city: companyData.city,
-        state: companyData.state,
-        pinCode: companyData.pinCode,
-        hrName: companyData.hrName,
-        hrEmail: companyData.hrEmail,
-        hrPhone: companyData.hrPhone,
-        altPhone: companyData.altPhone || null,
-        gstNumber: companyData.gstNumber || null,
-        panNumber: companyData.panNumber || null,
-        cinLlpin: companyData.cinLlpin || null,
-        coi: companyData.coi || null,
-        ceoName: companyData.ceoName || null,
-        ceoDesignation: companyData.ceoDesignation || null,
-        ceoEmail: companyData.ceoEmail || null,
-        ceoPhone: companyData.ceoPhone || null,
-        ceoLinkedin: companyData.ceoLinkedin || null,
-        ceoPortfolio: companyData.ceoPortfolio || null,
-        internshipType: companyData.internshipType || null,
+        companyLegalName: normalizedCompanyData.companyLegalName,
+        brandName: normalizedCompanyData.brandName,
+        companyDescription: normalizedCompanyData.companyDescription,
+        companyType: normalizedCompanyData.companyType,
+        industrySector: normalizedCompanyData.industrySector,
+        yearEstablished: normalizedCompanyData.yearEstablished ? parseInt(normalizedCompanyData.yearEstablished, 10) : null,
+        companySize: normalizedCompanyData.companySize,
+        website: normalizedCompanyData.website,
+        address: normalizedCompanyData.address,
+        city: normalizedCompanyData.city,
+        state: normalizedCompanyData.state,
+        pinCode: normalizedCompanyData.pinCode,
+        hrName: normalizedCompanyData.hrName,
+        hrEmail: normalizedCompanyData.hrEmail,
+        hrPhone: normalizedCompanyData.hrPhone,
+        altPhone: normalizedCompanyData.altPhone,
+        gstNumber: normalizedCompanyData.gstNumber,
+        panNumber: normalizedCompanyData.panNumber,
+        cinLlpin: normalizedCompanyData.cinLlpin,
+        coi: normalizedCompanyData.coi,
+        ceoName: normalizedCompanyData.ceoName,
+        ceoDesignation: normalizedCompanyData.ceoDesignation,
+        ceoEmail: normalizedCompanyData.ceoEmail,
+        ceoPhone: normalizedCompanyData.ceoPhone,
+        ceoLinkedin: normalizedCompanyData.ceoLinkedin,
+        ceoPortfolio: normalizedCompanyData.ceoPortfolio,
+        internshipType: normalizedCompanyData.internshipType,
         domains:
-          typeof companyData.domains === "string" && companyData.domains.trim()
-            ? companyData.domains.split(",").map((domain: string) => domain.trim()).filter(Boolean)
+          normalizedCompanyData.domains
+            ? normalizedCompanyData.domains.split(",").map((domain: string) => domain.trim()).filter(Boolean)
             : null,
-        duration: companyData.duration || null,
-        stipendRange: companyData.stipendRange || null,
-        hiringIntention: companyData.hiringIntention || null,
-        generalTcAccepted: !!companyData.generalTcAccepted,
-        generalTcAcceptedAt: companyData.generalTcAccepted ? new Date() : null,
+        duration: normalizedCompanyData.duration,
+        stipendRange: normalizedCompanyData.stipendRange,
+        hiringIntention: normalizedCompanyData.hiringIntention,
+        generalTcAccepted: normalizedCompanyData.generalTcAccepted,
+        generalTcAcceptedAt: normalizedCompanyData.generalTcAccepted ? new Date() : null,
         status: "registration_submitted" as const,
         reviewedBy: null,
         reviewedByRole: null,
@@ -167,9 +215,9 @@ export async function POST(req: NextRequest) {
         entityType: "company_registration",
         entityId: registrationId,
         details: {
-          companyLegalName: companyData.companyLegalName,
-          hrEmail: companyData.hrEmail,
-          ceoEmail: companyData.ceoEmail,
+          companyLegalName: normalizedCompanyData.companyLegalName,
+          hrEmail: normalizedCompanyData.hrEmail,
+          ceoEmail: normalizedCompanyData.ceoEmail,
           tokenId: link.id,
         },
       });
@@ -186,8 +234,8 @@ export async function POST(req: NextRequest) {
             type: "company_registration_pending",
             title: wasUpdated ? "Company Registration Updated" : "New Company Registration",
             message: wasUpdated
-              ? `${companyData.companyLegalName} has resubmitted its registration for review.`
-              : `${companyData.companyLegalName} has submitted a registration application.`,
+              ? `${normalizedCompanyData.companyLegalName} has resubmitted its registration for review.`
+              : `${normalizedCompanyData.companyLegalName} has submitted a registration application.`,
             linkUrl: "/companies/review",
           }))
         );
