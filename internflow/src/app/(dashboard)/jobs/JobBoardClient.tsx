@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Search, MapPin, Building2, Calendar, Briefcase, Sparkles, Zap, Clock, AlertTriangle, Layers, Grid2x2, Banknote } from "lucide-react";
 import ApplyButton from "./ApplyButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -77,6 +78,7 @@ function OpportunityBadge({ type, ppo }: { type?: string, ppo?: boolean }) {
 }
 
 export default function JobBoardClient({ jobs, interests, isStudent, appliedJobIds = [] }: { jobs: JobCard[]; interests: Interest[]; isStudent: boolean; appliedJobIds?: string[] }) {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "swipe">("grid");
   const [minSalary, setMinSalary] = useState(0);
@@ -220,7 +222,12 @@ export default function JobBoardClient({ jobs, interests, isStudent, appliedJobI
         />
       ) : viewMode === "swipe" ? (
         <div style={{ paddingBottom: "80px" }}>
-          <SwipeDeck jobs={sortedAndFilteredJobs} isStudent={isStudent} appliedJobIds={appliedJobIds} />
+          <SwipeDeck
+            jobs={sortedAndFilteredJobs}
+            isStudent={isStudent}
+            appliedJobIds={appliedJobIds}
+            onViewDetails={(id) => router.push(`/jobs/${id}`)}
+          />
         </div>
       ) : (
         <div className="grid grid-2" style={{ gap: "var(--space-5)", paddingBottom: "80px" }}>

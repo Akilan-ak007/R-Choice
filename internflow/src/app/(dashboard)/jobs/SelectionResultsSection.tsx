@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Trophy, Filter, Calendar, Building2, User, CheckCircle2, Clock, AlertCircle, ShieldCheck, SendHorizonal, Loader2 } from "lucide-react";
-import { raiseODForStudents } from "@/app/actions/applications";
-import { toast } from "sonner";
+import { Trophy, Filter, Calendar, Building2, User, CheckCircle2, Clock, AlertCircle, ShieldCheck, SendHorizonal } from "lucide-react";
 import Link from "next/link";
 
 interface SelectionResult {
@@ -41,7 +39,6 @@ function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: stri
 
 export default function SelectionResultsSection({ results, odStatusMap = {}, viewerRole }: { results: SelectionResult[]; odStatusMap?: Record<string, string>; viewerRole?: string }) {
   const [filter, setFilter] = useState<"recent" | "all">("recent");
-  const [isRaisingOD, setIsRaisingOD] = useState(false);
 
   const isAuthority = ["tutor", "placement_coordinator", "hod", "dean", "placement_officer", "principal", "placement_head", "coe"].includes(viewerRole || "");
   const isPO = viewerRole === "placement_officer";
@@ -57,29 +54,6 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
 
   // Students who haven't started OD yet (no odStatus and not verified)
   const studentsNeedingOD = filteredResults.filter(r => !r.isVerified && !odStatusMap[r.studentId]);
-  // Students who actually need a code (haven't received one yet)
-  const studentsNeedingCode = studentsNeedingOD.filter(r => !r.verificationCode);
-
-  const handleRaiseOD = async () => {
-    if (studentsNeedingCode.length === 0) {
-      toast.info("All students have already received their codes or started OD.");
-      return;
-    }
-
-    setIsRaisingOD(true);
-    try {
-      const studentIds = studentsNeedingCode.map(r => r.studentId);
-      const res = await raiseODForStudents(studentIds);
-      if (res.error) {
-        toast.error(res.error);
-      } else {
-        toast.success(res.message || "OD process raised successfully!");
-      }
-    } catch {
-      toast.error("Failed to raise OD.");
-    }
-    setIsRaisingOD(false);
-  };
 
   if (results.length === 0) return null;
 
@@ -92,9 +66,8 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
           {/* Raise OD CTA — visible only to Placement Officer */}
           {isPO && studentsNeedingOD.length > 0 && (
-            <button
-              onClick={handleRaiseOD}
-              disabled={isRaisingOD || studentsNeedingCode.length === 0}
+            <Link
+              href="/approvals/results"
               className="btn"
               style={{
                 borderRadius: "100px",
@@ -104,17 +77,18 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
-                background: studentsNeedingCode.length === 0 ? "var(--bg-hover)" : "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                color: studentsNeedingCode.length === 0 ? "var(--text-secondary)" : "white",
+                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                color: "white",
                 border: "none",
                 fontWeight: 600,
-                boxShadow: studentsNeedingCode.length === 0 ? "none" : "0 2px 8px rgba(99, 102, 241, 0.3)",
-                cursor: studentsNeedingCode.length === 0 ? "not-allowed" : "pointer"
+                boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
+                cursor: "pointer",
+                textDecoration: "none",
               }}
             >
-              {isRaisingOD ? <Loader2 size={14} className="animate-spin" /> : <SendHorizonal size={14} />}
-              {studentsNeedingCode.length === 0 ? "Codes Sent" : `Raise OD (${studentsNeedingCode.length})`}
-            </button>
+              <SendHorizonal size={14} />
+              {`Review Raise OD Queue (${studentsNeedingOD.length})`}
+            </Link>
           )}
           {(["recent", "all"] as const).map(f => (
             <button

@@ -5,27 +5,27 @@ import tls from "node:tls";
 
 dotenv.config({ path: ".env.local" });
 dns.setDefaultResultOrder("ipv4first");
-tls.DEFAULT_MAX_VERSION = 'TLSv1.2';
+tls.DEFAULT_MAX_VERSION = "TLSv1.2";
 
 const sql = neon(process.env.DATABASE_URL!);
 
 async function run() {
   const seedEmails = [
-    'student@rathinam.edu.in',
-    'tutor@rathinam.edu.in',
-    'pc@rathinam.edu.in',
-    'hod@rathinam.edu.in',
-    'dean@rathinam.edu.in',
-    'po@rathinam.edu.in',
-    'coe@rathinam.edu.in',
-    'principal@rathinam.edu.in',
-    'ph@rathinam.edu.in',
-    'mcr@rathinam.edu.in',
-    'hr@techcorp.com',
-    'alumni@rathinam.edu.in'
+    "student@rathinam.edu.in",
+    "tutor@rathinam.edu.in",
+    "pc@rathinam.edu.in",
+    "hod@rathinam.edu.in",
+    "dean@rathinam.edu.in",
+    "po@rathinam.edu.in",
+    "coe@rathinam.edu.in",
+    "principal@rathinam.edu.in",
+    "ph@rathinam.edu.in",
+    "mcr@rathinam.edu.in",
+    "hr@techcorp.com",
+    "alumni@rathinam.edu.in",
   ];
 
-  console.log("🔥 Starting full database cleanup...");
+  console.log("Starting full database cleanup...");
 
   const tablesToClear = [
     "survey_responses",
@@ -63,26 +63,31 @@ async function run() {
     "student_projects",
     "student_certifications",
     "student_skills",
-    "student_profiles"
+    "student_profiles",
   ];
 
   for (const table of tablesToClear) {
     try {
       await sql.query(`DELETE FROM ${table}`);
-      console.log(`✅ Cleared ${table}`);
-    } catch (e) {
-      console.error(`❌ Failed to clear ${table}:`, e.message);
+      console.log(`Cleared ${table}`);
+    } catch (error) {
+      console.error(`Failed to clear ${table}:`, error instanceof Error ? error.message : String(error));
     }
   }
 
   try {
-    const deletedUsers = await sql.query(`DELETE FROM users WHERE email NOT IN (${seedEmails.map(e => `'${e}'`).join(', ')}) RETURNING email`);
-    console.log(`✅ Deleted ${deletedUsers.length} test users. Kept core login credentials.`);
-  } catch (e) {
-    console.error(`❌ Failed to delete non-seed users:`, e.message);
+    const deletedUsers = await sql.query(
+      `DELETE FROM users WHERE email NOT IN (${seedEmails.map((email) => `'${email}'`).join(", ")}) RETURNING email`
+    );
+    console.log(`Deleted ${deletedUsers.length} test users. Kept core login credentials.`);
+  } catch (error) {
+    console.error(
+      "Failed to delete non-seed users:",
+      error instanceof Error ? error.message : String(error)
+    );
   }
 
-  console.log("🎉 Database cleanup complete!");
+  console.log("Database cleanup complete!");
 }
 
 run().then(() => process.exit(0)).catch(console.error);
