@@ -1,9 +1,10 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { jobApplications, jobPostings, users, companyRegistrations, studentProfiles } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { desc, inArray, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { Trophy, Building2, Briefcase, GraduationCap } from "lucide-react";
+import Link from "next/link";
+import { Trophy, Building2, Briefcase, GraduationCap, ExternalLink, UserRound } from "lucide-react";
 
 export default async function ShortlistedPage() {
   const session = await auth();
@@ -16,12 +17,14 @@ export default async function ShortlistedPage() {
     .select({
       id: jobApplications.id,
       studentId: jobApplications.studentId,
+      jobId: jobApplications.jobId,
       studentFirstName: users.firstName,
       studentLastName: users.lastName,
       studentEmail: users.email,
       registerNo: studentProfiles.registerNo,
       department: studentProfiles.department,
       jobTitle: jobPostings.title,
+      companyId: companyRegistrations.id,
       companyName: companyRegistrations.companyLegalName,
       status: jobApplications.status,
       appliedAt: jobApplications.appliedAt,
@@ -32,7 +35,7 @@ export default async function ShortlistedPage() {
     .innerJoin(jobPostings, eq(jobApplications.jobId, jobPostings.id))
     .leftJoin(companyRegistrations, eq(jobPostings.companyId, companyRegistrations.id))
     .leftJoin(studentProfiles, eq(users.id, studentProfiles.userId))
-    .where(eq(jobApplications.status, "shortlisted"))
+    .where(inArray(jobApplications.status, ["shortlisted", "round_scheduled"]))
     .orderBy(desc(jobApplications.updatedAt));
 
   return (
@@ -55,7 +58,7 @@ export default async function ShortlistedPage() {
       ) : (
         <div style={{ display: "grid", gap: "var(--space-4)" }}>
           {shortlisted.map((s) => (
-            <div key={s.id} className="card" style={{ padding: "var(--space-4)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div key={s.id} className="card" style={{ padding: "var(--space-4)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-4)", flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
                 <div style={{ width: "44px", height: "44px", borderRadius: "50%", background: "var(--bg-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <GraduationCap size={20} style={{ color: "var(--primary-color)" }} />
@@ -74,6 +77,22 @@ export default async function ShortlistedPage() {
                 <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "4px", justifyContent: "flex-end" }}>
                   <Building2 size={12} /> {s.companyName || "Internal Posting"}
                 </p>
+                <p style={{ margin: "6px 0 0", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                  {s.status === "round_scheduled" ? "Round Scheduled" : "Shortlisted"}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginLeft: "auto" }}>
+                <Link href={`/students/${s.studentId}`} className="btn btn-outline" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <UserRound size={14} /> View Details
+                </Link>
+                {s.companyId && (
+                  <Link href={`/companies/${s.companyId}`} className="btn btn-outline" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <Building2 size={14} /> View Details
+                  </Link>
+                )}
+                <Link href={`/jobs/${s.jobId}`} className="btn btn-outline" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <ExternalLink size={14} /> View Details
+                </Link>
               </div>
             </div>
           ))}

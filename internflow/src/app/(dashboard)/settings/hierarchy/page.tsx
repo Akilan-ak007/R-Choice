@@ -9,7 +9,7 @@ export default async function HierarchyPage() {
   const session = await auth();
   const role = session?.user?.role;
 
-  if (!role || !["placement_officer", "principal", "dean", "hod", "mcr", "coe", "placement_head", "management_corporation"].includes(role)) {
+  if (!role || !["principal", "dean", "hod", "mcr", "coe", "placement_head", "management_corporation"].includes(role)) {
     redirect("/");
   }
 

@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
-import { users, internshipRequests, approvalLogs } from "@/lib/db/schema";
+import { users, internshipRequests, approvalLogs, jobPostings, companyRegistrations } from "@/lib/db/schema";
 import { Building, Calendar, MapPin, ExternalLink, MessageSquare, FolderOpen } from "lucide-react";
 import { eq, desc, inArray } from "drizzle-orm";
 import { format } from "date-fns";
+import Link from "next/link";
 
 type ApplicationLog = {
   requestId: string;
@@ -18,10 +19,14 @@ export default async function StudentsAppliedPage() {
   const applications = await db
     .select({
       id: internshipRequests.id,
+      studentId: internshipRequests.studentId,
       firstName: users.firstName,
       lastName: users.lastName,
       email: users.email,
+      companyId: companyRegistrations.id,
       companyName: internshipRequests.companyName,
+      jobPostingId: internshipRequests.jobPostingId,
+      jobTitle: jobPostings.title,
       role: internshipRequests.role,
       status: internshipRequests.status,
       startDate: internshipRequests.startDate,
@@ -33,6 +38,8 @@ export default async function StudentsAppliedPage() {
     })
     .from(internshipRequests)
     .innerJoin(users, eq(users.id, internshipRequests.studentId))
+    .leftJoin(jobPostings, eq(jobPostings.id, internshipRequests.jobPostingId))
+    .leftJoin(companyRegistrations, eq(companyRegistrations.id, jobPostings.companyId))
     .orderBy(desc(internshipRequests.submittedAt));
 
   const appIds = applications.map(a => a.id);
@@ -122,6 +129,22 @@ export default async function StudentsAppliedPage() {
                   </a>
                 </div>
               )}
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "var(--space-4)" }}>
+                <Link href={`/students/${app.studentId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                  View Details
+                </Link>
+                {app.companyId && (
+                  <Link href={`/companies/${app.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    View Details
+                  </Link>
+                )}
+                {app.jobPostingId && (
+                  <Link href={`/jobs/${app.jobPostingId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    View Details
+                  </Link>
+                )}
+              </div>
 
               {/* Progress Tracker */}
               <div className="tracker-scroll-wrapper">

@@ -28,6 +28,8 @@ type ApplicationLog = {
 
 type SelectionTimelineItem = {
   appId: string;
+  jobId: string;
+  companyId: string | null;
   jobTitle: string;
   companyName: string | null;
   applicationStatus: string | null;
@@ -50,7 +52,7 @@ export default async function ApplicationsPage() {
   }
 
   const userId = session.user.id;
-  let selectedAwaitingOd: { appId: string; jobTitle: string; companyName: string | null }[] = [];
+  let selectedAwaitingOd: { appId: string; jobId: string; companyId: string | null; jobTitle: string; companyName: string | null }[] = [];
   let selectionTimeline: SelectionTimelineItem[] = [];
   
   // Fetch their applications
@@ -82,8 +84,10 @@ export default async function ApplicationsPage() {
   const myJobApps = await db
     .select({
       appId: jobApplications.id,
+      jobId: jobPostings.id,
       status: jobApplications.status,
       jobTitle: jobPostings.title,
+      companyId: companyRegistrations.id,
       companyName: companyRegistrations.companyLegalName,
     })
     .from(jobApplications)
@@ -95,6 +99,8 @@ export default async function ApplicationsPage() {
     .filter((app) => app.status === "selected")
     .map((app) => ({
       appId: app.appId,
+      jobId: app.jobId,
+      companyId: app.companyId,
       jobTitle: app.jobTitle,
       companyName: app.companyName,
     }));
@@ -102,6 +108,8 @@ export default async function ApplicationsPage() {
   const roundProgressRows = await db
     .select({
       appId: jobApplications.id,
+      jobId: jobPostings.id,
+      companyId: companyRegistrations.id,
       applicationStatus: jobApplications.status,
       jobTitle: jobPostings.title,
       companyName: companyRegistrations.companyLegalName,
@@ -121,11 +129,13 @@ export default async function ApplicationsPage() {
 
   const timelineMap = new Map<string, SelectionTimelineItem>();
   for (const row of roundProgressRows) {
-    const existing = timelineMap.get(row.appId) || {
+    const existing: SelectionTimelineItem = timelineMap.get(row.appId) || {
       appId: row.appId,
-      jobTitle: row.jobTitle,
-      companyName: row.companyName,
-      applicationStatus: row.applicationStatus,
+      jobId: row.jobId,
+      companyId: row.companyId,
+        jobTitle: row.jobTitle,
+        companyName: row.companyName,
+        applicationStatus: row.applicationStatus,
       currentRound: null,
       clearedRounds: [],
     };
@@ -206,6 +216,16 @@ export default async function ApplicationsPage() {
                     <div style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>
                       Final company results are published. Once Placement Officer raises OD, this internship will appear in the approval tracker below.
                     </div>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                      <Link href={`/jobs/${app.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                        View Details
+                      </Link>
+                      {app.companyId && (
+                        <Link href={`/companies/${app.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                          View Details
+                        </Link>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -278,6 +298,16 @@ export default async function ApplicationsPage() {
                           </div>
                         )}
                       </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                      <Link href={`/jobs/${item.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                        View Details
+                      </Link>
+                      {item.companyId && (
+                        <Link href={`/companies/${item.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                          View Details
+                        </Link>
+                      )}
                     </div>
                   </div>
                 ))}

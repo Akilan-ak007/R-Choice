@@ -77,11 +77,21 @@ export default async function CompanyPortfolioPage(props: { params: Promise<{ id
   const session = await auth();
   if (!session?.user?.id) redirect("/");
 
-  const [reg] = await db
+  const [regById] = await db
     .select()
     .from(companyRegistrations)
     .where(eq(companyRegistrations.id, params.id))
     .limit(1);
+
+  const [regByUserId] = regById
+    ? [undefined]
+    : await db
+        .select()
+        .from(companyRegistrations)
+        .where(eq(companyRegistrations.userId, params.id))
+        .limit(1);
+
+  const reg = regById || regByUserId;
 
   if (!reg) {
     redirect("/companies");
@@ -130,7 +140,7 @@ export default async function CompanyPortfolioPage(props: { params: Promise<{ id
         </div>
         <div style={{ flex: 1 }}>
           <h1 style={{ margin: 0, fontSize: "1.75rem", fontWeight: 700 }}>
-            {reg?.companyLegalName || `${companyUser.firstName} ${companyUser.lastName}`}
+            {reg.companyLegalName || [companyUser?.firstName, companyUser?.lastName].filter(Boolean).join(" ") || "Company"}
           </h1>
           {reg?.brandName && (
             <p style={{ margin: "4px 0 0", opacity: 0.85, fontSize: "1rem" }}>

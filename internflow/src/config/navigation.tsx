@@ -151,7 +151,6 @@ export function getNavSections(role: string): NavSection[] {
           { label: "Post a Job", href: "/jobs/create", icon: <FileText size={20} /> },
         ]},
         { label: "Tools", items: [
-          { label: "Hierarchy Manager", href: "/settings/hierarchy", icon: <GitBranch size={20} /> },
           { label: "Export Data", href: "/export", icon: <Download size={20} /> },
           { label: "Settings", href: "/settings", icon: <Settings size={20} /> },
         ]},

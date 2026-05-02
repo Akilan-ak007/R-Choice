@@ -31,6 +31,8 @@ import VerificationBannerClient from "./VerificationBannerClient";
 
 type SelectionTimelineItem = {
   appId: string;
+  jobId: string;
+  companyId: string | null;
   jobTitle: string;
   companyName: string | null;
   applicationStatus: string | null;
@@ -54,8 +56,8 @@ export default async function StudentDashboard() {
   let applicationCount = 0;
   let approvedCount = 0;
   let pendingCount = 0;
-  let pendingVerificationApps: { appId: string; jobTitle: string; companyName: string | null; verificationCode: string | null }[] = [];
-  let shortlistedApps: { appId: string; jobTitle: string; companyName: string | null; status: string | null }[] = [];
+  let pendingVerificationApps: { appId: string; jobId: string; companyId: string | null; jobTitle: string; companyName: string | null; verificationCode: string | null }[] = [];
+  let shortlistedApps: { appId: string; jobId: string; companyId: string | null; jobTitle: string; companyName: string | null; status: string | null }[] = [];
   let selectionTimeline: SelectionTimelineItem[] = [];
   let approvedRequestsData: { id: string; status: string | null; companyName: string; role: string; startDate: string; endDate: string; approvedAt: Date | null }[] = [];
   let studentFullName = "Student";
@@ -93,10 +95,12 @@ export default async function StudentDashboard() {
     const myJobApps = await db
       .select({
         appId: jobApplications.id,
+        jobId: jobPostings.id,
         status: jobApplications.status,
         verificationCode: jobApplications.verificationCode,
         isVerified: jobApplications.isVerified,
         jobTitle: jobPostings.title,
+        companyId: companyRegistrations.id,
         companyName: companyRegistrations.companyLegalName,
       })
       .from(jobApplications)
@@ -106,15 +110,17 @@ export default async function StudentDashboard() {
 
     pendingVerificationApps = myJobApps
       .filter((app) => app.status === "selected")
-      .map((app) => ({ appId: app.appId, jobTitle: app.jobTitle, companyName: app.companyName, verificationCode: app.verificationCode }));
+      .map((app) => ({ appId: app.appId, jobId: app.jobId, companyId: app.companyId, jobTitle: app.jobTitle, companyName: app.companyName, verificationCode: app.verificationCode }));
 
     shortlistedApps = myJobApps
       .filter((app) => app.status === "shortlisted" || app.status === "round_scheduled")
-      .map((app) => ({ appId: app.appId, jobTitle: app.jobTitle, companyName: app.companyName, status: app.status }));
+      .map((app) => ({ appId: app.appId, jobId: app.jobId, companyId: app.companyId, jobTitle: app.jobTitle, companyName: app.companyName, status: app.status }));
 
     const roundProgressRows = await db
       .select({
         appId: jobApplications.id,
+        jobId: jobPostings.id,
+        companyId: companyRegistrations.id,
         applicationStatus: jobApplications.status,
         jobTitle: jobPostings.title,
         companyName: companyRegistrations.companyLegalName,
@@ -134,8 +140,10 @@ export default async function StudentDashboard() {
 
     const timelineMap = new Map<string, SelectionTimelineItem>();
     for (const row of roundProgressRows) {
-      const existing = timelineMap.get(row.appId) || {
+      const existing: SelectionTimelineItem = timelineMap.get(row.appId) || {
         appId: row.appId,
+        jobId: row.jobId,
+        companyId: row.companyId,
         jobTitle: row.jobTitle,
         companyName: row.companyName,
         applicationStatus: row.applicationStatus,
@@ -202,6 +210,16 @@ export default async function StudentDashboard() {
                     {app.status === "round_scheduled" ? "Round scheduled. Check your calendar." : "Awaiting final results..."}
                   </span>
                 </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                  <Link href={`/jobs/${app.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    View Details
+                  </Link>
+                  {app.companyId && (
+                    <Link href={`/companies/${app.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                      View Details
+                    </Link>
+                  )}
+                </div>
               </div>
             ))}
             {pendingVerificationApps.map((app) => (
@@ -218,6 +236,16 @@ export default async function StudentDashboard() {
                   <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                     Your company result is visible to the Placement Officer. Once OD is raised, it will appear in your applications tracker automatically.
                   </div>
+                </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                  <Link href={`/jobs/${app.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    View Details
+                  </Link>
+                  {app.companyId && (
+                    <Link href={`/companies/${app.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                      View Details
+                    </Link>
+                  )}
                 </div>
               </div>
             ))}
@@ -287,6 +315,16 @@ export default async function StudentDashboard() {
                       </div>
                     )}
                   </div>
+                </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                  <Link href={`/jobs/${item.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    View Details
+                  </Link>
+                  {item.companyId && (
+                    <Link href={`/companies/${item.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                      View Details
+                    </Link>
+                  )}
                 </div>
               </div>
             ))}
