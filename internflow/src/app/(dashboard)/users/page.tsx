@@ -1,11 +1,12 @@
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { studentProfiles, users } from "@/lib/db/schema";
 import { sql, ilike, or, eq, and, type SQL } from "drizzle-orm";
 import { Mail, Shield, Clock, Plus } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { buildManagedUsersCondition, getManagedUserRoles } from "@/lib/authority-scope";
 import DeleteUserButton from "./DeleteUserButton";
 
 export default async function UsersPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
@@ -18,12 +19,13 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
   const page = parseInt(searchParams.page || "1", 10);
   const pageSize = 20;
   const offset = (page - 1) * pageSize;
+  const canManageUsers = ["tutor", "placement_coordinator", "hod", "dean"].includes(userRole);
 
   async function deleteUser(formData: FormData) {
     "use server";
     const session = await auth();
     if (!session?.user?.id) return;
-    if (!["placement_officer", "placement_head", "management_corporation", "mcr"].includes(session.user.role)) return;
+    if (!["tutor", "placement_coordinator", "hod", "dean"].includes(session.user.role)) return;
 
     const targetUserId = formData.get("userId") as string;
     if (!targetUserId) return;
@@ -46,7 +48,18 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
   }
 
   const conditions: SQL[] = [];
-  if (roleFilter) {
+  const manageableRoles = [...getManagedUserRoles(userRole)];
+  if (canManageUsers) {
+    if (roleFilter) {
+      if (manageableRoles.includes(roleFilter as never)) {
+        conditions.push(eq(users.role, roleFilter as typeof users.role.enumValues[number]));
+      } else {
+        conditions.push(sql`1=0`);
+      }
+    } else if (manageableRoles.length > 0) {
+      conditions.push(sql`${users.role} IN (${sql.join(manageableRoles.map((role) => sql`${role}`), sql`, `)})`);
+    }
+  } else if (roleFilter) {
     conditions.push(eq(users.role, roleFilter as typeof users.role.enumValues[number]));
   }
   if (queryParam) {
@@ -58,16 +71,36 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
     if (search) conditions.push(search);
   }
 
+  const managedUsersCondition = canManageUsers && session?.user?.id
+    ? await buildManagedUsersCondition(session.user.id, userRole)
+    : undefined;
+  if (managedUsersCondition) {
+    conditions.push(managedUsersCondition);
+  }
+
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const allUsers = await db.select()
+  const allUsers = await db.select({
+    id: users.id,
+    firstName: users.firstName,
+    lastName: users.lastName,
+    email: users.email,
+    role: users.role,
+    department: users.department,
+    createdAt: users.createdAt,
+  })
     .from(users)
+    .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
     .where(whereClause)
     .orderBy(users.createdAt)
     .limit(pageSize)
     .offset(offset);
 
-  const countResult = await db.select({ count: sql`count(*)` }).from(users).where(whereClause);
+  const countResult = await db
+    .select({ count: sql`count(*)` })
+    .from(users)
+    .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
+    .where(whereClause);
   const totalCount = Number(countResult[0]?.count || 0);
   const totalPages = Math.ceil(totalCount / pageSize);
 
@@ -76,8 +109,8 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-4)" }}>
         <div>
           <h1>User Management</h1>
-          <p>Complete directory of all registered accounts on the platform.</p>
-          {["principal", "dean", "placement_officer"].includes(userRole) && (
+          <p>{canManageUsers ? "Manage students and lower-order staff within your assigned scope." : "Complete directory of registered accounts on the platform."}</p>
+          {canManageUsers && (
             <div style={{ marginTop: "1rem" }}>
               <Link href="/users/create" style={{ textDecoration: "none" }}>
                 <button className="button" style={{ display: "inline-flex", gap: "8px", alignItems: "center" }}>
@@ -94,10 +127,10 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
             <option value="tutor">Tutor</option>
             <option value="placement_coordinator">Placement Coordinator</option>
             <option value="hod">HOD</option>
-            <option value="dean">Dean</option>
-            <option value="placement_officer">Placement Officer</option>
-            <option value="principal">Principal</option>
-            <option value="company">Company</option>
+            {!canManageUsers && <option value="dean">Dean</option>}
+            {!canManageUsers && <option value="placement_officer">Placement Officer</option>}
+            {!canManageUsers && <option value="principal">Principal</option>}
+            {!canManageUsers && <option value="company">Company</option>}
           </select>
           <input 
             type="search" 
@@ -155,7 +188,7 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
                       </div>
                     </td>
                     <td style={{ padding: "var(--space-4)", textAlign: "center" }}>
-                      {["placement_officer", "placement_head", "management_corporation", "mcr"].includes(userRole) && user.id !== session?.user?.id && (
+                      {canManageUsers && user.id !== session?.user?.id && (
                         <DeleteUserButton userId={user.id} userName={`${user.firstName} ${user.lastName}`} deleteAction={deleteUser} />
                       )}
                     </td>

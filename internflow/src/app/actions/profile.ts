@@ -5,12 +5,13 @@ import { db } from "@/lib/db";
 import { 
   studentProfiles, studentEducation, studentSkills, studentProjects, studentCertifications, studentJobInterests, studentLinks, users 
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 
 type DbErrorWithCode = {
   code?: string;
+  detail?: string;
 };
 
 // Auto-create a minimal student profile if one doesn't exist.
@@ -40,7 +41,6 @@ function revalidateStudentProfileViews(userId: string) {
   revalidatePath("/jobs");
   revalidatePath("/students");
   revalidatePath(`/students/${userId}`);
-  revalidatePath(`/portfolio/${userId}`);
 }
 
 // Helper to recalculate and update score
@@ -56,16 +56,16 @@ async function updateProfileScore(profileId: string) {
   if (profile.professionalSummary && profile.professionalSummary.length > 20) score += 20;
 
   const [eduRes, skillRes, projRes, linkRes] = await Promise.all([
-    db.execute(`SELECT COUNT(*) FROM student_education WHERE student_id = '${profileId}'`),
-    db.execute(`SELECT COUNT(*) FROM student_skills WHERE student_id = '${profileId}'`),
-    db.execute(`SELECT COUNT(*) FROM student_projects WHERE student_id = '${profileId}'`),
-    db.execute(`SELECT COUNT(*) FROM student_links WHERE student_id = '${profileId}'`)
+    db.select({ value: count() }).from(studentEducation).where(eq(studentEducation.studentId, profileId)),
+    db.select({ value: count() }).from(studentSkills).where(eq(studentSkills.studentId, profileId)),
+    db.select({ value: count() }).from(studentProjects).where(eq(studentProjects.studentId, profileId)),
+    db.select({ value: count() }).from(studentLinks).where(eq(studentLinks.studentId, profileId)),
   ]);
 
-  const eduCount = Number(eduRes.rows[0]?.count || 0);
-  const skillCount = Number(skillRes.rows[0]?.count || 0);
-  const projCount = Number(projRes.rows[0]?.count || 0);
-  const linkCount = Number(linkRes.rows[0]?.count || 0);
+  const eduCount = Number(eduRes[0]?.value || 0);
+  const skillCount = Number(skillRes[0]?.value || 0);
+  const projCount = Number(projRes[0]?.value || 0);
+  const linkCount = Number(linkRes[0]?.value || 0);
 
   if (Number(eduCount) > 0) score += 15;
   if (Number(skillCount) > 0) score += 15;
@@ -104,25 +104,43 @@ export async function saveBasicProfile(formData: {
   const userId = session.user.id;
 
   try {
+    const normalizedRegisterNo = formData.registerNo?.trim() || "";
+    const normalizedDepartment = formData.department?.trim() || "";
+    const normalizedSection = formData.section?.trim() || "";
+    const normalizedSummary = formData.professionalSummary?.trim() || "";
+
+    if (!normalizedRegisterNo) {
+      return { error: "Register number is required." };
+    }
+
+    if (!normalizedDepartment) {
+      return { error: "Department is required." };
+    }
+
     const [existingProfile] = await db.select().from(studentProfiles).where(eq(studentProfiles.userId, userId)).limit(1);
 
-    const cgpaVal = formData.cgpa ? parseFloat(formData.cgpa).toString() : null;
+    const parsedCgpa = formData.cgpa ? Number.parseFloat(formData.cgpa) : null;
+    if (formData.cgpa && (parsedCgpa === null || !Number.isFinite(parsedCgpa) || parsedCgpa < 0 || parsedCgpa > 10)) {
+      return { error: "CGPA must be a valid number between 0 and 10." };
+    }
+
+    const cgpaVal = parsedCgpa !== null ? parsedCgpa.toFixed(2) : null;
     let score = 0;
-    if (formData.registerNo) score += 10;
-    if (formData.department) score += 10;
+    if (normalizedRegisterNo) score += 10;
+    if (normalizedDepartment) score += 10;
     if (formData.year) score += 5;
-    if (formData.cgpa) score += 5;
-    if (formData.professionalSummary && formData.professionalSummary.length > 20) score += 20;
+    if (cgpaVal) score += 5;
+    if (normalizedSummary.length > 20) score += 20;
 
     let profileId: string;
 
     if (existingProfile) {
       profileId = existingProfile.id;
       await db.update(studentProfiles).set({
-        registerNo: formData.registerNo,
-        department: formData.department,
+        registerNo: normalizedRegisterNo,
+        department: normalizedDepartment,
         year: formData.year,
-        section: formData.section,
+        section: normalizedSection,
         school: formData.school || null,
         course: formData.course || null,
         program: formData.program || null,
@@ -130,7 +148,7 @@ export async function saveBasicProfile(formData: {
         batchStartYear: formData.batchStartYear || null,
         batchEndYear: formData.batchEndYear || null,
         cgpa: cgpaVal,
-        professionalSummary: formData.professionalSummary,
+        professionalSummary: normalizedSummary,
         dob: formData.dob || null,
         githubLink: formData.githubLink || null,
         linkedinLink: formData.linkedinLink || null,
@@ -141,10 +159,10 @@ export async function saveBasicProfile(formData: {
     } else {
       const [newProfile] = await db.insert(studentProfiles).values({
         userId,
-        registerNo: formData.registerNo,
-        department: formData.department,
+        registerNo: normalizedRegisterNo,
+        department: normalizedDepartment,
         year: formData.year,
-        section: formData.section,
+        section: normalizedSection,
         school: formData.school || null,
         course: formData.course || null,
         program: formData.program || null,
@@ -152,7 +170,7 @@ export async function saveBasicProfile(formData: {
         batchStartYear: formData.batchStartYear || null,
         batchEndYear: formData.batchEndYear || null,
         cgpa: cgpaVal,
-        professionalSummary: formData.professionalSummary,
+        professionalSummary: normalizedSummary,
         dob: formData.dob || null,
         githubLink: formData.githubLink || null,
         linkedinLink: formData.linkedinLink || null,
@@ -178,8 +196,9 @@ export async function saveBasicProfile(formData: {
     revalidatePath("/settings");
     return { success: true, score };
   } catch (error: unknown) {
+    console.error("Basic profile save error:", error);
     if ((error as DbErrorWithCode).code === "23505") return { error: "Register Number is already in use by another student." };
-    return { error: "Failed to save profile. Please try again." };
+    return { error: `Failed to save profile. ${error instanceof Error ? error.message : "Please try again."}` };
   }
 }
 
@@ -237,19 +256,28 @@ export async function saveEducation(educationData: { institution?: string; degre
   const profileId = await ensureStudentProfile(session.user.id);
 
   try {
+    const sanitizedEducation = educationData
+      .map((edu) => ({
+        institution: edu.institution?.trim() || "",
+        degree: edu.degree?.trim() || "",
+        fieldOfStudy: edu.fieldOfStudy?.trim() || null,
+        startYear: edu.startYear ? Number(edu.startYear) : null,
+        endYear: edu.endYear ? Number(edu.endYear) : null,
+        score: edu.score?.toString().trim() || null,
+      }))
+      .filter((edu) => edu.institution && edu.degree);
+
     await db.delete(studentEducation).where(eq(studentEducation.studentId, profileId));
-    for (const edu of educationData) {
-      if (edu.institution && edu.degree) {
+    for (const edu of sanitizedEducation) {
         await db.insert(studentEducation).values({
           studentId: profileId,
           institution: edu.institution,
           degree: edu.degree,
-          fieldOfStudy: edu.fieldOfStudy || null,
-          startYear: edu.startYear ? Number(edu.startYear) : null,
-          endYear: edu.endYear ? Number(edu.endYear) : null,
-          score: edu.score ? edu.score.toString() : null
+          fieldOfStudy: edu.fieldOfStudy,
+          startYear: edu.startYear,
+          endYear: edu.endYear,
+          score: edu.score
         });
-      }
     }
     await updateProfileScore(profileId);
     revalidateStudentProfileViews(session.user.id);
@@ -263,13 +291,21 @@ export async function saveSkills(skillsData: {name: string, type: string, isTop?
   const profileId = await ensureStudentProfile(session.user.id);
 
   try {
+    const sanitizedSkills = skillsData
+      .map((skill) => ({
+        name: skill.name?.trim() || "",
+        type: skill.type === "language" ? "language" : skill.type === "soft" ? "soft" : "hard",
+        isTop: !!skill.isTop,
+      }))
+      .filter((skill) => skill.name);
+
     await db.delete(studentSkills).where(eq(studentSkills.studentId, profileId));
-    for (const skill of skillsData) {
+    for (const skill of sanitizedSkills) {
       await db.insert(studentSkills).values({
         studentId: profileId,
         skillName: skill.name,
-        skillType: (skill.type === "language" ? "language" : skill.type === "hard" ? "hard" : "soft") as "hard" | "soft" | "language",
-        isTop: skill.isTop || false,
+        skillType: skill.type as "hard" | "soft" | "language",
+        isTop: skill.isTop,
       });
     }
     await updateProfileScore(profileId);
@@ -284,16 +320,22 @@ export async function saveProjects(projectsData: { title?: string; description?:
   const profileId = await ensureStudentProfile(session.user.id);
 
   try {
+    const sanitizedProjects = projectsData
+      .map((project) => ({
+        title: project.title?.trim() || "",
+        description: project.description?.trim() || "",
+        projectUrl: project.projectUrl?.trim() || null,
+      }))
+      .filter((project) => project.title && project.description);
+
     await db.delete(studentProjects).where(eq(studentProjects.studentId, profileId));
-    for (const p of projectsData) {
-      if (p.title && p.description) {
+    for (const p of sanitizedProjects) {
         await db.insert(studentProjects).values({
           studentId: profileId,
           title: p.title,
           description: p.description,
-          projectUrl: p.projectUrl || null,
+          projectUrl: p.projectUrl,
         });
-      }
     }
     await updateProfileScore(profileId);
     revalidateStudentProfileViews(session.user.id);
@@ -307,16 +349,22 @@ export async function saveCertifications(certsData: { name?: string; issuingOrg?
   const profileId = await ensureStudentProfile(session.user.id);
 
   try {
+    const sanitizedCerts = certsData
+      .map((cert) => ({
+        name: cert.name?.trim() || "",
+        issuingOrg: cert.issuingOrg?.trim() || "",
+        credentialUrl: cert.credentialUrl?.trim() || null,
+      }))
+      .filter((cert) => cert.name && cert.issuingOrg);
+
     await db.delete(studentCertifications).where(eq(studentCertifications.studentId, profileId));
-    for (const c of certsData) {
-      if (c.name && c.issuingOrg) {
+    for (const c of sanitizedCerts) {
         await db.insert(studentCertifications).values({
           studentId: profileId,
           name: c.name,
           issuingOrg: c.issuingOrg,
-          credentialUrl: c.credentialUrl || null,
+          credentialUrl: c.credentialUrl,
         });
-      }
     }
     await updateProfileScore(profileId);
     revalidateStudentProfileViews(session.user.id);
@@ -330,16 +378,22 @@ export async function saveLinks(linksData: { title?: string; url?: string; platf
   const profileId = await ensureStudentProfile(session.user.id);
 
   try {
+    const sanitizedLinks = linksData
+      .map((link) => ({
+        title: link.title?.trim() || "",
+        url: link.url?.trim() || "",
+        platform: link.platform?.trim() || "Other",
+      }))
+      .filter((link) => link.title && link.url);
+
     await db.delete(studentLinks).where(eq(studentLinks.studentId, profileId));
-    for (const l of linksData) {
-      if (l.title && l.url) {
+    for (const l of sanitizedLinks) {
         await db.insert(studentLinks).values({
           studentId: profileId,
           platform: l.platform,
           title: l.title,
           url: l.url,
         });
-      }
     }
     await updateProfileScore(profileId);
     revalidateStudentProfileViews(session.user.id);

@@ -2,10 +2,34 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { approvalEscalations, internshipRequests, users } from "@/lib/db/schema";
-import { desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-const ALLOWED_ROLES = ["dean", "placement_officer", "coe", "principal", "placement_head", "management_corporation"];
+const ALLOWED_ROLES = ["dean", "placement_officer", "coe", "principal", "placement_head", "management_corporation", "mcr"];
+const PENDING_STATUSES = [
+  "pending_tutor",
+  "pending_coordinator",
+  "pending_hod",
+  "pending_dean",
+  "pending_po",
+  "pending_coe",
+  "pending_principal",
+] as const;
+
+const TIER_LABELS: Record<number, string> = {
+  1: "Tutor",
+  2: "Placement Coordinator",
+  3: "HOD",
+  4: "Dean",
+  5: "Placement Officer",
+  6: "COE",
+  7: "Principal",
+};
+
+function getElapsedHours(enteredAt: Date | string | null | undefined) {
+  if (!enteredAt) return null;
+  return Math.max(0, Math.floor((Date.now() - new Date(enteredAt).getTime()) / (1000 * 60 * 60)));
+}
 
 export default async function EscalationDashboardPage() {
   const session = await auth();
@@ -39,7 +63,13 @@ export default async function EscalationDashboardPage() {
     .from(approvalEscalations)
     .innerJoin(internshipRequests, eq(approvalEscalations.requestId, internshipRequests.id))
     .innerJoin(users, eq(internshipRequests.studentId, users.id))
-    .where(isNull(approvalEscalations.resolvedAt))
+    .where(
+      and(
+        isNull(approvalEscalations.resolvedAt),
+        inArray(internshipRequests.status, PENDING_STATUSES),
+        eq(approvalEscalations.escalatedFromTier, internshipRequests.currentTier),
+      ),
+    )
     .orderBy(desc(approvalEscalations.lastNotifiedAt), desc(approvalEscalations.createdAt));
 
   const summary = {
@@ -98,7 +128,10 @@ export default async function EscalationDashboardPage() {
                   </td>
                   <td>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <span>Tier {item.escalatedFromTier} to Tier {item.escalatedToTier}</span>
+                      <span>
+                        {TIER_LABELS[item.escalatedFromTier || 0] || `Tier ${item.escalatedFromTier}`} to{" "}
+                        {TIER_LABELS[item.escalatedToTier || 0] || `Tier ${item.escalatedToTier}`}
+                      </span>
                       <span className="badge" style={{ width: "fit-content" }}>Stage {item.escalationStage || 1}</span>
                     </div>
                   </td>
@@ -112,7 +145,14 @@ export default async function EscalationDashboardPage() {
                         SLA window: {item.currentTierSlaHours || 6}h
                       </span>
                       <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                        Request tier: {item.currentTier || item.escalatedFromTier}
+                        Request tier: {TIER_LABELS[item.currentTier || item.escalatedFromTier || 0] || item.currentTier || item.escalatedFromTier}
+                      </span>
+                      <span style={{ fontSize: "0.8rem", color: "#dc2626", fontWeight: 600 }}>
+                        {(() => {
+                          const elapsed = getElapsedHours(item.currentTierEnteredAt);
+                          if (elapsed === null) return "Elapsed time unavailable";
+                          return `${elapsed}h elapsed at current tier`;
+                        })()}
                       </span>
                     </div>
                   </td>

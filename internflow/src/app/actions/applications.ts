@@ -274,6 +274,12 @@ export async function shortlistApplicant(applicationId: string) {
     });
 
     revalidatePath("/applicants");
+    revalidatePath("/students/shortlisted");
+    revalidatePath("/students/applied");
+    revalidatePath("/students");
+    revalidatePath("/dashboard/company");
+    revalidatePath("/dashboard/staff");
+    revalidatePath("/dashboard/admin");
     return { success: true, newStatus };
   } catch (err: unknown) {
     captureServerError(err, {
@@ -465,7 +471,14 @@ export async function postCompanyResults(jobId: string, selectedStudentIds: stri
 
     // Optional: Alert the hierarchy that a result was posted (can be global or mapped to selected students)
     
-    revalidatePath("/dashboard/company/applicants");
+    revalidatePath("/applicants");
+    revalidatePath("/approvals/results");
+    revalidatePath("/students/shortlisted");
+    revalidatePath("/students/applied");
+    revalidatePath("/students");
+    revalidatePath("/dashboard/company");
+    revalidatePath("/dashboard/admin");
+    revalidatePath("/dashboard/staff");
     return { success: true };
   } catch (err: unknown) {
     captureServerError(err, {
@@ -579,6 +592,12 @@ export async function toggleApplicantRoundScheduled(applicationId: string) {
     revalidatePath("/applicants");
     revalidatePath("/calendar");
     revalidatePath("/dashboard/student");
+    revalidatePath("/students/shortlisted");
+    revalidatePath("/students/applied");
+    revalidatePath("/students");
+    revalidatePath("/dashboard/company");
+    revalidatePath("/dashboard/staff");
+    revalidatePath("/dashboard/admin");
     return { success: true, newStatus };
   } catch (err: unknown) {
     captureServerError(err, {
@@ -760,6 +779,12 @@ export async function recordApplicantRoundOutcome(
     revalidatePath("/applicants");
     revalidatePath("/calendar");
     revalidatePath("/dashboard/student");
+    revalidatePath("/students/shortlisted");
+    revalidatePath("/students/applied");
+    revalidatePath("/students");
+    revalidatePath("/dashboard/company");
+    revalidatePath("/dashboard/staff");
+    revalidatePath("/dashboard/admin");
     return { success: true };
   } catch (err: unknown) {
     captureServerError(err, {

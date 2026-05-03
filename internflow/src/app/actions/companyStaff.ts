@@ -2,11 +2,11 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { companyStaff, users } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
-import { randomBytes } from "crypto";
+import { getCompanyContextForUser } from "@/lib/company-context";
 
 export async function createCompanyStaff(formData: FormData) {
   const session = await auth();
@@ -30,23 +30,29 @@ export async function createCompanyStaff(formData: FormData) {
     const [existing] = await db.select().from(users).where(eq(users.email, rawEmail)).limit(1);
     if (existing) return { error: "User with this email already exists." };
 
-    // Get CEO's company Id
-    const [ceo] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-    if (!ceo?.companyId) return { error: "No associated company found for this Master Account." };
+    const companyContext = await getCompanyContextForUser(session.user.id);
+    if (!companyContext?.companyId) return { error: "No associated company found for this Master Account." };
 
     const passwordHash = await bcrypt.hash(rawPassword, 12);
 
-    await db.insert(users).values({
+    const [newUser] = await db.insert(users).values({
       email: rawEmail,
       firstName: rawFirstName,
       lastName: rawLastName,
       phone: rawPhone,
       passwordHash,
       role: "company_staff",
-      companyId: ceo.companyId,
+      companyId: companyContext.companyId,
       staffRole: rawStaffRole,
       employeeId: rawEmployeeId,
       department: rawDepartment,
+      isActive: true,
+    }).returning({ id: users.id });
+
+    await db.insert(companyStaff).values({
+      companyId: companyContext.companyId,
+      userId: newUser.id,
+      roleInCompany: rawStaffRole,
       isActive: true,
     });
 
@@ -55,6 +61,7 @@ export async function createCompanyStaff(formData: FormData) {
       console.log(`[SYS] STAFF CREATED: ${rawEmail}`);
     }
 
+    revalidatePath("/dashboard/company");
     revalidatePath("/dashboard/company/team");
     return { success: true, generatedPassword: rawPassword }; // UI will display once for them to copy
   } catch (error: unknown) {
@@ -68,15 +75,24 @@ export async function revokeCompanyStaff(staffId: string) {
   if (!session?.user?.id || session.user.role !== "company") return { error: "Unauthorized" };
 
   try {
-    const [ceo] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
+    const companyContext = await getCompanyContextForUser(session.user.id);
+    if (!companyContext?.companyId) return { error: "No associated company found." };
     
     // Ensure the staff belongs to the same company
     const [staff] = await db.select().from(users).where(eq(users.id, staffId)).limit(1);
-    if (!staff || staff.companyId !== ceo.companyId) {
+    const [membership] = await db
+      .select()
+      .from(companyStaff)
+      .where(and(eq(companyStaff.userId, staffId), eq(companyStaff.companyId, companyContext.companyId)))
+      .limit(1);
+
+    if (!staff || !membership) {
       return { error: "Not authorized to target this user" };
     }
 
     await db.update(users).set({ isActive: false }).where(eq(users.id, staffId));
+    await db.update(companyStaff).set({ isActive: false }).where(eq(companyStaff.id, membership.id));
+    revalidatePath("/dashboard/company");
     revalidatePath("/dashboard/company/team");
     return { success: true };
   } catch (error) {

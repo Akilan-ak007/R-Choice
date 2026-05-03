@@ -16,17 +16,38 @@ import bcrypt from "bcryptjs";
 import { sanitize, validateEmail, validateEnum } from "@/lib/validation";
 
 
-const ADMIN_ROLES = ["dean", "placement_officer", "principal", "coe", "mcr", "placement_coordinator"];
+const USER_MANAGER_ROLES = ["tutor", "placement_coordinator", "hod", "dean"] as const;
+const OPERATIONS_ADMIN_ROLES = ["dean", "placement_officer", "principal", "coe", "mcr", "management_corporation"] as const;
 
-async function assertAdmin() {
+function getAllowedCreateRolesFor(managerRole: string) {
+  if (managerRole === "tutor" || managerRole === "placement_coordinator") {
+    return ["student"] as const;
+  }
+  if (managerRole === "hod") {
+    return ["student", "tutor", "placement_coordinator"] as const;
+  }
+  if (managerRole === "dean") {
+    return ["student", "tutor", "placement_coordinator", "hod"] as const;
+  }
+  return [] as const;
+}
+
+async function assertUserManager() {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
-  if (!ADMIN_ROLES.includes(session.user.role)) throw new Error("Unauthorized");
+  if (!USER_MANAGER_ROLES.includes(session.user.role as (typeof USER_MANAGER_ROLES)[number])) throw new Error("Unauthorized");
+  return session;
+}
+
+async function assertOperationsAdmin() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Not authenticated");
+  if (!OPERATIONS_ADMIN_ROLES.includes(session.user.role as (typeof OPERATIONS_ADMIN_ROLES)[number])) throw new Error("Unauthorized");
   return session;
 }
 
 export async function createUserAction(formData: FormData) {
-  const session = await assertAdmin();
+  const session = await assertUserManager();
 
   try {
     const rawEmail = formData.get("email");
@@ -35,12 +56,12 @@ export async function createUserAction(formData: FormData) {
     const rawPassword = formData.get("password") as string;
     const rawRole = formData.get("role");
 
-    const validRoles = ["student", "tutor", "placement_coordinator", "hod", "dean", "placement_officer", "principal", "company", "alumni"] as const;
+    const allowedRoles = getAllowedCreateRolesFor(session.user.role);
 
     const email = validateEmail(rawEmail, "Email Address");
     const firstName = sanitize(rawFirstName, "First Name", 100);
     const lastName = sanitize(rawLastName, "Last Name", 100);
-    const role = validateEnum(rawRole, validRoles, "Global Role");
+    const role = validateEnum(rawRole, allowedRoles, "Global Role");
 
     if (!rawPassword || rawPassword.trim().length < 8) {
       return { error: "Password must be at least 8 characters long." };
@@ -83,7 +104,7 @@ export async function createUserAction(formData: FormData) {
 }
 
 export async function deleteUser(userId: string) {
-  const session = await assertAdmin();
+  const session = await assertUserManager();
 
   if (userId === session.user.id) {
     return { error: "You cannot delete your own account." };
@@ -94,9 +115,9 @@ export async function deleteUser(userId: string) {
     const [target] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
     if (!target) return { error: "User not found." };
 
-    // Prevent deleting other admins
-    if (ADMIN_ROLES.includes(target.role) && target.role !== "company") {
-      return { error: "Cannot delete administrative accounts." };
+    const allowedDeleteRoles = getAllowedCreateRolesFor(session.user.role);
+    if (!allowedDeleteRoles.includes(target.role as never)) {
+      return { error: "You can only remove users within your assigned management scope." };
     }
 
     // Cascade delete handled by DB constraints (onDelete: cascade)
@@ -121,7 +142,7 @@ export async function deleteUser(userId: string) {
 }
 
 export async function deleteJob(jobId: string) {
-  const session = await assertAdmin();
+  const session = await assertOperationsAdmin();
 
   try {
     const [job] = await db.select().from(jobPostings).where(eq(jobPostings.id, jobId)).limit(1);
@@ -152,7 +173,7 @@ export async function deleteJob(jobId: string) {
 }
 
 export async function deleteCompany(companyRegId: string) {
-  const session = await assertAdmin();
+  const session = await assertOperationsAdmin();
 
   try {
     const [reg] = await db
@@ -188,7 +209,7 @@ export async function deleteCompany(companyRegId: string) {
 }
 
 export async function bulkExportDatabase() {
-  const session = await assertAdmin();
+  const session = await assertOperationsAdmin();
 
   try {
     // Audit the export action
@@ -225,7 +246,7 @@ export async function bulkExportDatabase() {
 import { randomBytes } from "crypto";
 
 export async function generateCompanyInvitation(formData: FormData) {
-  const session = await assertAdmin();
+  const session = await assertOperationsAdmin();
   try {
     const rawEmail = formData.get("email");
     const email = validateEmail(rawEmail, "Company Email");

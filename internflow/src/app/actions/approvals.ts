@@ -15,7 +15,7 @@ import {
   approvalSlaSettings,
   approvalEscalations,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { captureServerError, captureServerEvent } from "@/lib/observability";
 
@@ -203,6 +203,18 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
         currentTierSlaHours: slaHours,
       })
       .where(eq(internshipRequests.id, requestId));
+
+    // Escalations belong to a specific pending tier. Once the request advances,
+    // any open escalation for the previous tier should no longer appear active.
+    await db
+      .update(approvalEscalations)
+      .set({ resolvedAt: now })
+      .where(
+        and(
+          eq(approvalEscalations.requestId, requestId),
+          ne(approvalEscalations.escalatedFromTier, next.nextTier),
+        ),
+      );
 
     // Log the approval with optional endorsement
     await db.insert(approvalLogs).values({

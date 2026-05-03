@@ -10,8 +10,8 @@ const sharedRoutes = ["/settings", "/profile", "/export", "/calendar"];
 
 const roleRoutes: Record<string, string[]> = {
   student: ["/dashboard/student", "/jobs", "/applications", "/reports"],
-  tutor: ["/dashboard/staff", "/students", "/approvals", "/jobs", "/reports"],
-  placement_coordinator: ["/dashboard/staff", "/students", "/approvals", "/jobs", "/reports"],
+  tutor: ["/dashboard/staff", "/students", "/approvals", "/jobs", "/reports", "/users"],
+  placement_coordinator: ["/dashboard/staff", "/students", "/approvals", "/jobs", "/reports", "/users"],
   hod: ["/dashboard/staff", "/students", "/approvals", "/jobs", "/reports", "/users"],
   dean: ["/dashboard/admin", "/students", "/approvals", "/jobs", "/analytics", "/users", "/companies", "/reports"],
   placement_officer: ["/dashboard/admin", "/students", "/approvals", "/jobs", "/analytics", "/users", "/companies", "/reports"],

@@ -15,7 +15,7 @@ export default async function SettingsPage() {
   // Fetch full user data from DB for all roles
   const [u] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
   if (!u) return null;
-  const canManageOdSla = role === "management_corporation";
+  const canManageOdSla = role === "management_corporation" || role === "mcr";
   const canViewOdSla = canManageOdSla || role === "placement_officer" || role === "placement_head";
 
   const [odSlaSetting] = canViewOdSla

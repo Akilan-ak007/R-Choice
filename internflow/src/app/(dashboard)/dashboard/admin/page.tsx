@@ -67,7 +67,7 @@ export default async function AdminDashboard() {
   const mailDeliveryMode = getMailDeliveryMode();
 
   const [manualHandoffResult] =
-    userRole === "management_corporation" && session?.user?.id
+    ["management_corporation", "mcr"].includes(userRole) && session?.user?.id
       ? await db
           .select({ value: count() })
           .from(notifications)
@@ -106,7 +106,7 @@ export default async function AdminDashboard() {
                 </div>
               </Link>
             )}
-            {["placement_officer", "management_corporation", "placement_head"].includes(userRole) && (
+            {["placement_officer", "management_corporation", "mcr", "placement_head"].includes(userRole) && (
               <Link href="/companies/review" style={{ textDecoration: "none", color: "inherit" }}>
                 <div className="card action-card">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -132,7 +132,7 @@ export default async function AdminDashboard() {
                 </div>
               </Link>
             )}
-            {["placement_officer", "management_corporation", "placement_head"].includes(userRole) && (
+            {["placement_officer", "management_corporation", "mcr", "placement_head"].includes(userRole) && (
               <Link href="/settings" style={{ textDecoration: "none", color: "inherit" }}>
                 <div className="card action-card">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -158,7 +158,7 @@ export default async function AdminDashboard() {
                 </div>
               </Link>
             )}
-            {["dean", "placement_officer", "coe", "principal", "placement_head", "management_corporation"].includes(userRole) && (
+            {["dean", "placement_officer", "coe", "principal", "placement_head", "management_corporation", "mcr"].includes(userRole) && (
               <Link href="/approvals/escalations" style={{ textDecoration: "none", color: "inherit" }}>
                 <div className="card action-card">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -214,7 +214,7 @@ export default async function AdminDashboard() {
           </div>
 
           {/* MCR-specific: Generate company onboarding links */}
-          {userRole === "management_corporation" && (
+          {["management_corporation", "mcr"].includes(userRole) && (
             <div style={{ marginTop: "var(--space-6)" }}>
               <h2 style={{ marginBottom: "var(--space-4)" }}>Company Onboarding</h2>
               <div className="card" style={{ padding: "var(--space-5)" }}>
@@ -223,6 +223,15 @@ export default async function AdminDashboard() {
                 </p>
                 <GenerateLinkButton />
               </div>
+
+              <Link href="/companies/invitations" style={{ textDecoration: "none", color: "inherit" }}>
+                <div className="card action-card" style={{ marginTop: "var(--space-4)" }}>
+                  <p style={{ fontWeight: 600 }}>View Registration Links</p>
+                  <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                    Review generated onboarding links, expiry windows, and submitted registrations.
+                  </p>
+                </div>
+              </Link>
 
               {mailDeliveryMode !== "smtp" && (
                 <div className="card" style={{ padding: "var(--space-5)", marginTop: "var(--space-4)", border: "1px solid rgba(245, 158, 11, 0.2)", background: "rgba(245, 158, 11, 0.08)" }}>

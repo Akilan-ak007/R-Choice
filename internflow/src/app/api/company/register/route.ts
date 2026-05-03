@@ -22,6 +22,12 @@ function asOptionalString(value: unknown) {
   return normalized || null;
 }
 
+function asOptionalInt(value: string | null) {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -119,6 +125,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (!normalizedCompanyData.generalTcAccepted) {
+      return NextResponse.json({ error: "You must accept the general terms and conditions." }, { status: 400 });
+    }
+
     if (normalizedCompanyData.accountPassword.length < 8) {
       return NextResponse.json({ error: "Password must be at least 8 characters long." }, { status: 400 });
     }
@@ -158,7 +168,7 @@ export async function POST(req: NextRequest) {
         companyDescription: normalizedCompanyData.companyDescription,
         companyType: normalizedCompanyData.companyType,
         industrySector: normalizedCompanyData.industrySector,
-        yearEstablished: normalizedCompanyData.yearEstablished ? parseInt(normalizedCompanyData.yearEstablished, 10) : null,
+        yearEstablished: asOptionalInt(normalizedCompanyData.yearEstablished),
         companySize: normalizedCompanyData.companySize,
         website: normalizedCompanyData.website,
         address: normalizedCompanyData.address,
@@ -224,6 +234,16 @@ export async function POST(req: NextRequest) {
       const loginEmail = normalizedCompanyData.ceoEmail || normalizedCompanyData.hrEmail;
 
       if (existingRegistration?.userId) {
+        const [conflictingUser] = await tx
+          .select({ id: users.id, role: users.role })
+          .from(users)
+          .where(eq(users.email, loginEmail))
+          .limit(1);
+
+        if (conflictingUser && conflictingUser.id !== existingRegistration.userId) {
+          throw new Error("The selected company contact email is already used by another account.");
+        }
+
         await tx
           .update(users)
           .set({
@@ -245,7 +265,7 @@ export async function POST(req: NextRequest) {
           .where(eq(users.email, loginEmail))
           .limit(1);
 
-        if (existingLoginUser && !["company", "company_staff"].includes(existingLoginUser.role)) {
+        if (existingLoginUser && !["company"].includes(existingLoginUser.role)) {
           throw new Error("The selected company contact email is already used by another account.");
         }
 
@@ -306,7 +326,7 @@ export async function POST(req: NextRequest) {
       const mcrUsers = await tx
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.role, "management_corporation"));
+        .where(or(eq(users.role, "management_corporation"), eq(users.role, "mcr")));
 
       if (mcrUsers.length > 0) {
         await tx.insert(notifications).values(
@@ -328,6 +348,8 @@ export async function POST(req: NextRequest) {
     captureServerError(error, {
       scope: "POST /api/company/register",
     });
-    return NextResponse.json({ error: "Registration failed. Please try again." }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Registration failed. Please try again.";
+    const status = message.includes("already used") ? 400 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

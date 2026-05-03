@@ -64,7 +64,7 @@ export default async function DashboardCompanyPage() {
   const staffList = companyId
     ? await db
         .select({
-          id: companyStaff.id,
+          id: users.id,
           name: sql<string>`${users.firstName} || ' ' || ${users.lastName}`,
           email: users.email,
           designation: companyStaff.roleInCompany,
@@ -73,7 +73,7 @@ export default async function DashboardCompanyPage() {
         })
         .from(companyStaff)
         .innerJoin(users, eq(companyStaff.userId, users.id))
-        .where(eq(companyStaff.companyId, companyId))
+        .where(and(eq(companyStaff.companyId, companyId), eq(companyStaff.isActive, true)))
         .orderBy(desc(companyStaff.createdAt))
     : [];
 

@@ -1,9 +1,12 @@
 import { db } from "@/lib/db";
 import { users, internshipRequests, approvalLogs, jobPostings, companyRegistrations } from "@/lib/db/schema";
 import { Building, Calendar, MapPin, ExternalLink, MessageSquare, FolderOpen } from "lucide-react";
-import { eq, desc, inArray } from "drizzle-orm";
+import { and, eq, desc, inArray, sql } from "drizzle-orm";
 import { format } from "date-fns";
 import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { buildStudentVisibilityCondition } from "@/lib/authority-scope";
+import { studentProfiles } from "@/lib/db/schema";
 
 type ApplicationLog = {
   requestId: string;
@@ -16,6 +19,19 @@ type ApplicationLog = {
 };
 
 export default async function StudentsAppliedPage() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return null;
+  }
+
+  const allowedRoles = ["tutor", "placement_coordinator", "hod", "dean", "placement_officer", "coe", "principal", "management_corporation", "mcr"];
+  if (!allowedRoles.includes(session.user.role)) {
+    return null;
+  }
+
+  const hierarchyCondition = await buildStudentVisibilityCondition(session.user.id, session.user.role);
+  const whereCondition = hierarchyCondition ? and(hierarchyCondition) : sql`1=1`;
+
   const applications = await db
     .select({
       id: internshipRequests.id,
@@ -40,6 +56,8 @@ export default async function StudentsAppliedPage() {
     .innerJoin(users, eq(users.id, internshipRequests.studentId))
     .leftJoin(jobPostings, eq(jobPostings.id, internshipRequests.jobPostingId))
     .leftJoin(companyRegistrations, eq(companyRegistrations.id, jobPostings.companyId))
+    .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
+    .where(whereCondition)
     .orderBy(desc(internshipRequests.submittedAt));
 
   const appIds = applications.map(a => a.id);
@@ -155,7 +173,7 @@ export default async function StudentsAppliedPage() {
                   <div 
                     className="progress-fill-line" 
                     style={{ 
-                      width: `${Math.min(100, Math.max(0, ((Math.max(1, app.currentTier || 1) - 1) / 6) * 100))}%`,
+                      width: `${Math.min(100, Math.max(0, ((Math.max(1, app.currentTier || 1) - 1) / 7) * 100))}%`,
                       background: String(app.status) === "rejected" ? "linear-gradient(90deg, #8DC63F 0%, #22c55e 60%, #ef4444 100%)" :
                          String(app.status) === "returned" ? "linear-gradient(90deg, #8DC63F 0%, #22c55e 60%, #eab308 100%)" :
                          String(app.status) === "approved" ? "linear-gradient(90deg, #8DC63F 0%, #22c55e 100%)" :
@@ -163,7 +181,7 @@ export default async function StudentsAppliedPage() {
                     }}
                   ></div>
                   
-                  {["Applied", "Tutor", "Coordinator", "HOD", "Dean", "Pl. Head", "Principal"].map((label, index) => {
+                  {["Applied", "Tutor", "Coordinator", "HOD", "Dean", "Placement Officer", "COE", "Principal"].map((label, index) => {
                     const tier = index + 1;
                     const currentTier = app.currentTier || 1;
                     const statusStr = String(app.status);
@@ -206,7 +224,7 @@ export default async function StudentsAppliedPage() {
                     }
 
                     return (
-                      <div key={label} className="progress-step" style={{ flexBasis: "14%" }}>
+                      <div key={label} className="progress-step" style={{ flexBasis: "12.5%" }}>
                         <div className="step-dot" style={dotStyle}></div>
                         <span className="step-label" style={{ color: labelColor, fontWeight: labelWeight }}>{label}</span>
                         {timestampStr && (

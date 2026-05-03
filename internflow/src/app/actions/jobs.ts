@@ -35,7 +35,7 @@ export async function createJobPosting(formData: FormData) {
   }
   
   const allowedRoles = [
-    "company", "tutor", "placement_coordinator", "hod", "dean", 
+    "company", "company_staff", "tutor", "placement_coordinator", "hod", "dean", 
     "placement_officer", "principal", "coe", "placement_head", "management_corporation"
   ];
   const role = session.user.role;
@@ -407,9 +407,9 @@ export async function updateJobPosting(jobId: string, formData: FormData) {
     await db.update(jobPostings).set(updatePayload).where(eq(jobPostings.id, jobId));
 
     const roundNames = formData.getAll("selectionSteps").map((value) => String(value).trim()).filter(Boolean);
+    const roundsJson = formData.get("selectionRoundsJson") as string | null;
     let structuredRounds: RoundPayload[] = [];
     try {
-      const roundsJson = formData.get("selectionRoundsJson") as string | null;
       if (roundsJson) {
         const parsed = JSON.parse(roundsJson);
         if (Array.isArray(parsed)) {
@@ -431,7 +431,7 @@ export async function updateJobPosting(jobId: string, formData: FormData) {
       structuredRounds = [];
     }
 
-    if (structuredRounds.length > 0 || roundNames.length > 0) {
+    if (roundsJson !== null || roundNames.length > 0) {
       const existingRounds = await db
         .select({ id: selectionProcessRounds.id })
         .from(selectionProcessRounds)
@@ -450,20 +450,22 @@ export async function updateJobPosting(jobId: string, formData: FormData) {
             location: "",
             description: "",
           }));
-      await db.insert(selectionProcessRounds).values(
-        roundsToInsert.map((round, index) => ({
-          jobId,
-          roundNumber: index + 1,
-          roundName: round.roundName,
-          roundType: round.roundType || "custom",
-          description: round.description || null,
-          startsAt: round.startsAt ? new Date(round.startsAt) : null,
-          endsAt: round.endsAt ? new Date(round.endsAt) : null,
-          mode: round.mode || null,
-          meetLink: round.meetLink || null,
-          location: round.location || null,
-        }))
-      );
+      if (roundsToInsert.length > 0) {
+        await db.insert(selectionProcessRounds).values(
+          roundsToInsert.map((round, index) => ({
+            jobId,
+            roundNumber: index + 1,
+            roundName: round.roundName,
+            roundType: round.roundType || "custom",
+            description: round.description || null,
+            startsAt: round.startsAt ? new Date(round.startsAt) : null,
+            endsAt: round.endsAt ? new Date(round.endsAt) : null,
+            mode: round.mode || null,
+            meetLink: round.meetLink || null,
+            location: round.location || null,
+          }))
+        );
+      }
 
       await syncSelectionRoundCalendarForJob(
         jobId,
@@ -475,6 +477,9 @@ export async function updateJobPosting(jobId: string, formData: FormData) {
 
     revalidatePath("/jobs");
     revalidatePath("/jobs/manage");
+    revalidatePath(`/jobs/manage/${jobId}`);
+    revalidatePath("/dashboard/company");
+    revalidatePath("/applicants");
     revalidatePath(`/approvals/jobs`);
     return { success: true };
   } catch (error: unknown) {

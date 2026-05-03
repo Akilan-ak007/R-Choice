@@ -367,7 +367,7 @@ export default async function ApplicationsPage() {
                   <div 
                     className="progress-fill-line" 
                     style={{ 
-                      width: `${Math.min(100, Math.max(0, ((Math.max(1, app.currentTier || 1) - 1) / 6) * 100))}%`,
+                      width: `${Math.min(100, Math.max(0, ((Math.max(1, app.currentTier || 1) - 1) / 7) * 100))}%`,
                       background: String(app.status) === "rejected" ? "linear-gradient(90deg, #8DC63F 0%, #22c55e 60%, #ef4444 100%)" :
                          String(app.status) === "returned" ? "linear-gradient(90deg, #8DC63F 0%, #22c55e 60%, #eab308 100%)" :
                          String(app.status) === "approved" ? "linear-gradient(90deg, #8DC63F 0%, #22c55e 100%)" :
@@ -375,7 +375,7 @@ export default async function ApplicationsPage() {
                     }}
                   ></div>
                   
-                  {["Applied", "Tutor", "Coordinator", "HOD", "Dean", "Pl. Head", "Principal"].map((label, index) => {
+                  {["Applied", "Tutor", "Coordinator", "HOD", "Dean", "Placement Officer", "COE", "Principal"].map((label, index) => {
                     const tier = index + 1;
                     const currentTier = app.currentTier || 1;
                     const statusStr = String(app.status);
@@ -420,7 +420,7 @@ export default async function ApplicationsPage() {
                       }
                     }
                     return (
-                      <div key={label} className="progress-step" style={{ flexBasis: "14%" }}>
+                      <div key={label} className="progress-step" style={{ flexBasis: "12.5%" }}>
                         <div className="step-dot" style={dotStyle}></div>
                         <span className="step-label" style={{ color: labelColor, fontWeight: labelWeight }}>{label}</span>
                         {timestampStr && (

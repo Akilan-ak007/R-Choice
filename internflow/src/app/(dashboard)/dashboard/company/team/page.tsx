@@ -1,11 +1,12 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { companyStaff, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import StaffManagerClient from "./StaffManagerClient";
 import { UsersIcon, ShieldCheck, XCircle } from "lucide-react";
 import { revokeCompanyStaff } from "@/app/actions/companyStaff";
+import { getCompanyContextForUser } from "@/lib/company-context";
 
 export default async function CompanyTeamPage() {
   const session = await auth();
@@ -16,11 +17,24 @@ export default async function CompanyTeamPage() {
     redirect("/dashboard/company");
   }
 
-  const [ceo] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!ceo?.companyId) return <div>Company profile not bound properly. Cannot manage staff.</div>;
+  const companyContext = await getCompanyContextForUser(session.user.id);
+  if (!companyContext?.companyId) return <div>Company profile not bound properly. Cannot manage staff.</div>;
 
-  const staffMembers = await db.select().from(users)
-    .where(and(eq(users.companyId, ceo.companyId), eq(users.role, "company_staff")));
+  const staffMembers = await db
+    .select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      employeeId: users.employeeId,
+      staffRole: companyStaff.roleInCompany,
+      department: users.department,
+      email: users.email,
+      phone: users.phone,
+      isActive: users.isActive,
+    })
+    .from(companyStaff)
+    .innerJoin(users, eq(companyStaff.userId, users.id))
+    .where(and(eq(companyStaff.companyId, companyContext.companyId), eq(users.role, "company_staff")));
 
   return (
     <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>

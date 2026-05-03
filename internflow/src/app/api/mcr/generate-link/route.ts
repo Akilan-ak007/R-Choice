@@ -5,7 +5,7 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== "management_corporation") {
+  if (!session?.user?.id || !["management_corporation", "mcr"].includes(session.user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

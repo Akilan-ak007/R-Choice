@@ -3,12 +3,33 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldAlert, Loader2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { createUserAction } from "@/app/actions/admin";
 
 export default function CreateUserPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const currentRole = session?.user?.role || "";
+  const allowedRoles =
+    currentRole === "tutor" || currentRole === "placement_coordinator"
+      ? [{ value: "student", label: "Student" }]
+      : currentRole === "hod"
+        ? [
+            { value: "student", label: "Student" },
+            { value: "tutor", label: "Tutor" },
+            { value: "placement_coordinator", label: "Placement Coordinator" },
+          ]
+        : currentRole === "dean"
+          ? [
+              { value: "student", label: "Student" },
+              { value: "tutor", label: "Tutor" },
+              { value: "placement_coordinator", label: "Placement Coordinator" },
+              { value: "hod", label: "HOD (Head of Department)" },
+            ]
+          : [];
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -22,7 +43,7 @@ export default function CreateUserPage() {
       setError(result.error);
       setLoading(false);
     } else {
-      router.push("/users");
+      router.push("/users?role=student");
     }
   }
 
@@ -32,8 +53,22 @@ export default function CreateUserPage() {
         <div style={{ textAlign: "center", marginBottom: "var(--space-6)" }}>
           <ShieldAlert size={48} color="var(--color-primary)" style={{ margin: "0 auto", marginBottom: "var(--space-4)" }} />
           <h1 style={{ fontSize: "1.75rem", fontWeight: 700 }}>Create User Account</h1>
-          <p style={{ color: "var(--text-secondary)", marginTop: "var(--space-2)" }}>Create a new platform user with a specific role and secure credentials.</p>
+          <p style={{ color: "var(--text-secondary)", marginTop: "var(--space-2)" }}>Create a new user inside your allowed management scope.</p>
         </div>
+
+        {allowedRoles.length === 0 && (
+          <div style={{ 
+            color: "var(--color-danger)", 
+            padding: "16px", 
+            marginBottom: "var(--space-4)",
+            background: "rgba(239, 68, 68, 0.1)", 
+            borderRadius: "var(--radius-md)", 
+            fontSize: "0.875rem",
+            border: "1px solid rgba(239, 68, 68, 0.2)"
+          }}>
+            You do not have permission to create users from this page.
+          </div>
+        )}
 
         {error && (
           <div style={{ 
@@ -68,16 +103,10 @@ export default function CreateUserPage() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <label style={{ fontSize: "0.875rem", fontWeight: 500 }}>Global Role</label>
-            <select name="role" required style={{ padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-primary)" }}>
-              <option value="student">Student</option>
-              <option value="tutor">Tutor</option>
-              <option value="placement_coordinator">Placement Coordinator</option>
-              <option value="hod">HOD (Head of Department)</option>
-              <option value="dean">Dean</option>
-              <option value="placement_officer">Placement Officer</option>
-              <option value="company">Corporate Entity (Company)</option>
-              <option value="alumni">Alumni</option>
-              <option value="principal">Principal</option>
+            <select name="role" required disabled={allowedRoles.length === 0} style={{ padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-primary)" }}>
+              {allowedRoles.map((role) => (
+                <option key={role.value} value={role.value}>{role.label}</option>
+              ))}
             </select>
           </div>
 
@@ -87,7 +116,7 @@ export default function CreateUserPage() {
             <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", margin: 0 }}>Required length: 8 characters minimum.</p>
           </div>
 
-          <button type="submit" className="button" disabled={loading} style={{ marginTop: "var(--space-4)", width: "100%", justifyContent: "center", height: "45px", fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>
+          <button type="submit" className="button" disabled={loading || allowedRoles.length === 0} style={{ marginTop: "var(--space-4)", width: "100%", justifyContent: "center", height: "45px", fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>
             {loading ? <Loader2 size={18} className="animate-spin" /> : "Create Account"}
           </button>
         </form>

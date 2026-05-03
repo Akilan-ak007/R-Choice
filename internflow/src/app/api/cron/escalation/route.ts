@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   internshipRequests,
@@ -60,6 +60,17 @@ export async function POST(req: NextRequest) {
 
     for (const request of pendingRequests) {
       const tier = request.currentTier || 1;
+      await db
+        .update(approvalEscalations)
+        .set({ resolvedAt: new Date() })
+        .where(
+          and(
+            eq(approvalEscalations.requestId, request.id),
+            isNull(approvalEscalations.resolvedAt),
+            ne(approvalEscalations.escalatedFromTier, tier),
+          ),
+        );
+
       const enteredTierAt = request.currentTierEnteredAt || request.lastReviewedAt || request.submittedAt;
       if (!enteredTierAt) continue;
 
@@ -79,7 +90,13 @@ export async function POST(req: NextRequest) {
       const [existingEscalation] = await db
         .select()
         .from(approvalEscalations)
-        .where(and(eq(approvalEscalations.requestId, request.id), isNull(approvalEscalations.resolvedAt)))
+        .where(
+          and(
+            eq(approvalEscalations.requestId, request.id),
+            eq(approvalEscalations.escalatedFromTier, tier),
+            isNull(approvalEscalations.resolvedAt),
+          ),
+        )
         .limit(1);
 
       if (existingEscalation?.escalationStage === stage && existingEscalation.lastNotifiedAt) {

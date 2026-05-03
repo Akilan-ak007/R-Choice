@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { Building, CheckCircle, XCircle, Clock, Globe, Mail, Phone, RotateCcw, FileText, Users } from "lucide-react";
-import { ExportCompanyDocs } from "./ExportButtons";
 import { reviewCompanyRegistration } from "@/app/actions/mcr";
 import { getMailDeliveryMode } from "@/lib/mail";
 
@@ -24,7 +23,7 @@ export default async function CompanyReviewPage() {
     "use server";
     const session = await auth();
     if (!session?.user?.id) return;
-    if (session.user.role !== "management_corporation") return;
+    if (!["management_corporation", "mcr"].includes(session.user.role)) return;
 
     const id = formData.get("id") as string;
     const action = formData.get("action") as string;
@@ -159,6 +158,9 @@ export default async function CompanyReviewPage() {
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+                    <Link href={`/companies/${reg.id}`} className="btn btn-outline" style={{ textDecoration: "none", padding: "6px 10px", fontSize: "0.75rem" }}>
+                      View Details
+                    </Link>
                     <span className={`status-pill ${reg.status === "approved" ? "status-approved" : "status-rejected"}`}>{reg.status}</span>
                     {/* Reconsider button for reviewed items */}
                     <form action={reviewCompany} style={{ display: "inline" }}>
@@ -175,9 +177,6 @@ export default async function CompanyReviewPage() {
                   <div style={{ marginTop: "var(--space-2)", padding: "var(--space-2) var(--space-3)", background: "var(--bg-secondary)", borderRadius: "6px", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
                     <strong>Review Note:</strong> {reg.reviewComment}
                   </div>
-                )}
-                {reg.status === "approved" && (
-                  <ExportCompanyDocs companyName={reg.companyLegalName} date={reg.reviewedAt?.toLocaleDateString() || new Date().toLocaleDateString()} />
                 )}
               </div>
             ))}

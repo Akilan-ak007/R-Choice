@@ -56,7 +56,7 @@ export default async function StudentDashboard() {
   let applicationCount = 0;
   let approvedCount = 0;
   let pendingCount = 0;
-  let pendingVerificationApps: { appId: string; jobId: string; companyId: string | null; jobTitle: string; companyName: string | null; verificationCode: string | null }[] = [];
+  let pendingVerificationApps: { appId: string; jobId: string; companyId: string | null; jobTitle: string; companyName: string | null }[] = [];
   let shortlistedApps: { appId: string; jobId: string; companyId: string | null; jobTitle: string; companyName: string | null; status: string | null }[] = [];
   let selectionTimeline: SelectionTimelineItem[] = [];
   let approvedRequestsData: { id: string; status: string | null; companyName: string; role: string; startDate: string; endDate: string; approvedAt: Date | null }[] = [];
@@ -97,8 +97,6 @@ export default async function StudentDashboard() {
         appId: jobApplications.id,
         jobId: jobPostings.id,
         status: jobApplications.status,
-        verificationCode: jobApplications.verificationCode,
-        isVerified: jobApplications.isVerified,
         jobTitle: jobPostings.title,
         companyId: companyRegistrations.id,
         companyName: companyRegistrations.companyLegalName,
@@ -110,7 +108,7 @@ export default async function StudentDashboard() {
 
     pendingVerificationApps = myJobApps
       .filter((app) => app.status === "selected")
-      .map((app) => ({ appId: app.appId, jobId: app.jobId, companyId: app.companyId, jobTitle: app.jobTitle, companyName: app.companyName, verificationCode: app.verificationCode }));
+      .map((app) => ({ appId: app.appId, jobId: app.jobId, companyId: app.companyId, jobTitle: app.jobTitle, companyName: app.companyName }));
 
     shortlistedApps = myJobApps
       .filter((app) => app.status === "shortlisted" || app.status === "round_scheduled")
@@ -186,7 +184,6 @@ export default async function StudentDashboard() {
       {pendingVerificationApps.map((app) => (
         <VerificationBannerClient
           key={app.appId}
-          applicationId={app.appId}
           jobTitle={app.jobTitle}
           companyName={app.companyName || "Company"}
         />

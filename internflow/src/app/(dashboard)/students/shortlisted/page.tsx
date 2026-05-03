@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { jobApplications, jobPostings, users, companyRegistrations, studentProfiles } from "@/lib/db/schema";
-import { desc, inArray, eq } from "drizzle-orm";
+import { and, desc, inArray, eq } from "drizzle-orm";
+import { buildStudentVisibilityCondition } from "@/lib/authority-scope";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Trophy, Building2, Briefcase, GraduationCap, ExternalLink, UserRound } from "lucide-react";
@@ -10,8 +11,13 @@ export default async function ShortlistedPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/");
 
-  const staffRoles = ["tutor", "placement_coordinator", "hod", "dean", "placement_officer", "coe", "placement_head", "management_corporation", "principal"];
+  const staffRoles = ["tutor", "placement_coordinator", "hod", "dean", "placement_officer", "coe", "placement_head", "management_corporation", "mcr", "principal"];
   if (!staffRoles.includes(session.user.role)) redirect("/dashboard/student");
+
+  const hierarchyCondition = await buildStudentVisibilityCondition(session.user.id, session.user.role);
+  const shortlistCondition = hierarchyCondition
+    ? and(inArray(jobApplications.status, ["shortlisted", "round_scheduled", "selected"]), hierarchyCondition)
+    : inArray(jobApplications.status, ["shortlisted", "round_scheduled", "selected"]);
 
   const shortlisted = await db
     .select({
@@ -35,7 +41,7 @@ export default async function ShortlistedPage() {
     .innerJoin(jobPostings, eq(jobApplications.jobId, jobPostings.id))
     .leftJoin(companyRegistrations, eq(jobPostings.companyId, companyRegistrations.id))
     .leftJoin(studentProfiles, eq(users.id, studentProfiles.userId))
-    .where(inArray(jobApplications.status, ["shortlisted", "round_scheduled"]))
+    .where(shortlistCondition)
     .orderBy(desc(jobApplications.updatedAt));
 
   return (
@@ -45,7 +51,7 @@ export default async function ShortlistedPage() {
           <Trophy size={28} style={{ color: "var(--rathinam-green)" }} />
           <div>
             <h1>Shortlisted Students</h1>
-            <p>Students who have been shortlisted by companies for interview rounds.</p>
+          <p>Students shortlisted, scheduled for rounds, or selected by companies within your access scope.</p>
           </div>
         </div>
       </div>
@@ -78,7 +84,7 @@ export default async function ShortlistedPage() {
                   <Building2 size={12} /> {s.companyName || "Internal Posting"}
                 </p>
                 <p style={{ margin: "6px 0 0", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                  {s.status === "round_scheduled" ? "Round Scheduled" : "Shortlisted"}
+                  {s.status === "round_scheduled" ? "Round Scheduled" : s.status === "selected" ? "Selected" : "Shortlisted"}
                 </p>
               </div>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginLeft: "auto" }}>

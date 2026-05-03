@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
-import { users, studentProfiles, authorityMappings } from "@/lib/db/schema";
-import { eq, and, or, sql } from "drizzle-orm";
+import { users, studentProfiles } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
+import { buildStudentVisibilityCondition } from "@/lib/authority-scope";
 import StudentsClient from "./StudentsClient";
 
 export default async function StudentsPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
@@ -11,38 +12,9 @@ export default async function StudentsPage(props: { searchParams: Promise<{ [key
   const userRole = session?.user?.role;
   const userId = session?.user?.id;
 
-  let hierarchyConditions = undefined;
-
-  if (userRole && ["tutor", "placement_coordinator", "hod", "dean"].includes(userRole)) {
-    let mappingCondition;
-    if (userRole === "tutor") mappingCondition = eq(authorityMappings.tutorId, userId!);
-    else if (userRole === "placement_coordinator") mappingCondition = eq(authorityMappings.placementCoordinatorId, userId!);
-    else if (userRole === "hod") mappingCondition = eq(authorityMappings.hodId, userId!);
-    else if (userRole === "dean") mappingCondition = eq(authorityMappings.deanId, userId!);
-
-    if (mappingCondition) {
-      const mappings = await db.select().from(authorityMappings).where(mappingCondition);
-      
-      if (mappings.length > 0) {
-        const matchConditions = mappings.map(m => {
-          const conds = [
-            eq(studentProfiles.department, m.department),
-            eq(studentProfiles.year, m.year),
-            eq(studentProfiles.section, m.section)
-          ];
-          if (m.school) conds.push(eq(studentProfiles.school, m.school));
-          if (m.course) conds.push(eq(studentProfiles.course, m.course));
-          if (m.programType) conds.push(eq(studentProfiles.programType, m.programType));
-          if (m.batchStartYear) conds.push(eq(studentProfiles.batchStartYear, m.batchStartYear));
-          if (m.batchEndYear) conds.push(eq(studentProfiles.batchEndYear, m.batchEndYear));
-          return and(...conds);
-        });
-        hierarchyConditions = or(...matchConditions);
-      } else {
-        hierarchyConditions = sql`1=0`;
-      }
-    }
-  }
+  const hierarchyConditions = userId && userRole
+    ? await buildStudentVisibilityCondition(userId, userRole)
+    : undefined;
 
   const baseConditions = [eq(users.role, "student")];
   if (hierarchyConditions) baseConditions.push(hierarchyConditions!);

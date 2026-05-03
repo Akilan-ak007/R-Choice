@@ -14,10 +14,9 @@ interface SelectionResult {
   appliedAt: Date | null;
   updatedAt: Date | null;
   isVerified?: boolean | null;
-  verificationCode?: string | null;
 }
 
-function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: string | undefined, hasCode: boolean | undefined) {
+function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: string | undefined) {
   if (odStatus === "approved") {
     return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(34, 197, 94, 0.12)", color: "#22c55e" }}><CheckCircle2 size={11} /> OD Approved</span>;
   }
@@ -31,10 +30,7 @@ function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: stri
   if (isVerified) {
     return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(16, 185, 129, 0.12)", color: "#10b981" }}><ShieldCheck size={11} /> Verified</span>;
   }
-  if (hasCode) {
-    return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(168, 85, 247, 0.12)", color: "#a855f7" }}><SendHorizonal size={11} /> Code Sent</span>;
-  }
-  return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}><Clock size={11} /> Awaiting Verification</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}><Clock size={11} /> Awaiting PO Action</span>;
 }
 
 export default function SelectionResultsSection({ results, odStatusMap = {}, viewerRole }: { results: SelectionResult[]; odStatusMap?: Record<string, string>; viewerRole?: string }) {
@@ -120,7 +116,7 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
                   <User size={18} color="#f59e0b" />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <Link href={`/portfolio/${r.studentId}`} style={{ fontWeight: 600, margin: 0, fontSize: "0.95rem", color: "var(--primary-color)", textDecoration: "none" }}>
+                  <Link href={`/students/${r.studentId}`} style={{ fontWeight: 600, margin: 0, fontSize: "0.95rem", color: "var(--primary-color)", textDecoration: "none" }}>
                     {r.studentFirstName} {r.studentLastName}
                   </Link>
                   <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: 0 }}>{r.jobTitle}</p>
@@ -130,7 +126,7 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
               {/* OD Status Badge — visible to authorities and the student themselves */}
               {(isAuthority || viewerRole === "student") && (
                 <div style={{ marginBottom: "8px" }}>
-                  {getODStatusBadge(r.isVerified, odStatusMap[r.studentId], !!r.verificationCode)}
+                  {getODStatusBadge(r.isVerified, odStatusMap[r.studentId])}
                 </div>
               )}
 
