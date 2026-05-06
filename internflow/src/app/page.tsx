@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { loginAction } from "./actions/auth";
 import {
   GraduationCap,
   BookOpen,
@@ -101,18 +101,18 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const result = await signIn("credentials", {
-        redirect: false,
-        email,
-        password,
-        role: selectedRole,
-      });
+      const formData = new FormData();
+      formData.append("email", email);
+      formData.append("password", password);
+      formData.append("role", selectedRole);
+
+      const result = await loginAction(formData);
 
       if (result?.error) {
-        setError("Invalid email or password for this role.");
+        setError(result.error);
         setIsLoading(false);
-      } else if (result?.ok) {
-        router.push(getRedirectUrl(selectedRole));
+      } else if (result?.success && result.redirectUrl) {
+        router.push(result.redirectUrl);
       }
     } catch {
       setError("An unexpected error occurred. Please try again.");
