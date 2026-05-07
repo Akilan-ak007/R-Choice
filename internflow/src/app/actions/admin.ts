@@ -74,21 +74,21 @@ export async function createUserAction(formData: FormData) {
 
     const passwordHash = await bcrypt.hash(rawPassword.trim(), 12);
 
-    await db.insert(users).values({
+    const [newUser] = await db.insert(users).values({
       email,
       passwordHash,
       firstName,
       lastName,
       role,
       isActive: true,
-    });
+    }).returning({ id: users.id });
 
     // Audit log
     await db.insert(auditLogs).values({
       userId: session.user.id,
       action: "create_user",
       entityType: "user",
-      entityId: "new_user", // Note: normally we fetch the created user ID
+      entityId: newUser.id,
       details: { createdEmail: email, assignedRole: role },
     });
 
@@ -217,7 +217,7 @@ export async function bulkExportDatabase() {
       userId: session.user.id,
       action: "system_export",
       entityType: "system",
-      entityId: "bulk",
+      // entityId omitted since it is bulk
       details: { requester: session.user.email },
     });
 

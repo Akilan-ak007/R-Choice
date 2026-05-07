@@ -209,11 +209,11 @@ export default async function StudentDashboard() {
                 </div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
                   <Link href={`/jobs/${app.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                    View Details
+                    View Job
                   </Link>
                   {app.companyId && (
                     <Link href={`/companies/${app.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                      View Details
+                      View Company
                     </Link>
                   )}
                 </div>
@@ -236,11 +236,11 @@ export default async function StudentDashboard() {
                 </div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
                   <Link href={`/jobs/${app.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                    View Details
+                    View Job
                   </Link>
                   {app.companyId && (
                     <Link href={`/companies/${app.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                      View Details
+                      View Company
                     </Link>
                   )}
                 </div>
@@ -315,11 +315,11 @@ export default async function StudentDashboard() {
                 </div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
                   <Link href={`/jobs/${item.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                    View Details
+                    View Job
                   </Link>
                   {item.companyId && (
                     <Link href={`/companies/${item.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                      View Details
+                      View Company
                     </Link>
                   )}
                 </div>
