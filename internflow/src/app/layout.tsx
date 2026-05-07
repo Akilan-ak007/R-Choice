@@ -33,6 +33,8 @@ export const viewport: Viewport = {
   themeColor: "#1E9BD7",
 };
 
+import { Providers } from "@/components/Providers";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -54,7 +56,9 @@ export default function RootLayout({
             `
           }}
         />
-        {children}
+        <Providers>
+          {children}
+        </Providers>
         <Toaster
           position="bottom-right"
           toastOptions={{
