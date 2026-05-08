@@ -113,7 +113,6 @@ export async function buildManagedUsersCondition(userId: string, role: string) {
   }
 
   const studentScope = buildStudentVisibilityConditionFromMappings(role, mappings);
-  const departments = Array.from(new Set(mappings.map((mapping) => mapping.department).filter(Boolean)));
   const resolvedStudentScope: SQL<unknown> = studentScope ?? sql`1=1`;
 
   const roleConditions: SQL<unknown>[] = [];
@@ -124,15 +123,38 @@ export async function buildManagedUsersCondition(userId: string, role: string) {
 
   const nonStudentRoles = managedRoles.filter((managedRole) => managedRole !== "student");
   if (nonStudentRoles.length > 0) {
-    if (departments.length > 0) {
+    const schools = Array.from(new Set(mappings.map((m) => m.school).filter(Boolean))) as string[];
+    const departments = Array.from(new Set(mappings.map((m) => m.department).filter(Boolean))) as string[];
+
+    let staffMappings: (typeof authorityMappings.$inferSelect)[] = [];
+
+    if (role === "dean" && schools.length > 0) {
+      staffMappings = await db.select().from(authorityMappings).where(inArray(authorityMappings.school, schools));
+    } else if (departments.length > 0) {
+      staffMappings = await db.select().from(authorityMappings).where(inArray(authorityMappings.department, departments));
+    }
+
+    const staffIds = new Set<string>();
+    for (const sm of staffMappings) {
+      if (role === "dean") {
+        if (sm.tutorId) staffIds.add(sm.tutorId);
+        if (sm.placementCoordinatorId) staffIds.add(sm.placementCoordinatorId);
+        if (sm.hodId) staffIds.add(sm.hodId);
+      } else if (role === "hod") {
+        if (sm.tutorId) staffIds.add(sm.tutorId);
+        if (sm.placementCoordinatorId) staffIds.add(sm.placementCoordinatorId);
+      }
+    }
+
+    if (staffIds.size > 0) {
       roleConditions.push(
         and(
           inArray(users.role, nonStudentRoles as unknown as ("tutor" | "placement_coordinator" | "hod")[]),
-          inArray(users.department, departments)
+          inArray(users.id, Array.from(staffIds))
         ) as SQL<unknown>
       );
     } else {
-      roleConditions.push(inArray(users.role, nonStudentRoles as unknown as ("tutor" | "placement_coordinator" | "hod")[]) as SQL<unknown>);
+      roleConditions.push(sql`1=0`);
     }
   }
 

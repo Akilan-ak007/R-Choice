@@ -9,15 +9,18 @@ import {
   companyRegistrations,
   companyInvitations,
   auditLogs,
+  studentProfiles,
+  authorityMappings,
 } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { sanitize, validateEmail, validateEnum } from "@/lib/validation";
 
-
-const USER_MANAGER_ROLES = ["tutor", "placement_coordinator", "hod", "dean"] as const;
+const USER_MANAGER_ROLES = ["tutor", "placement_coordinator", "hod", "dean", "principal", "mcr", "management_corporation"] as const;
 const OPERATIONS_ADMIN_ROLES = ["dean", "placement_officer", "principal", "coe", "mcr", "management_corporation"] as const;
+const DEAN_SCOPE_SECTION = "ALL";
+const DEAN_SCOPE_YEAR = 0;
 
 function getAllowedCreateRolesFor(managerRole: string) {
   if (managerRole === "tutor" || managerRole === "placement_coordinator") {
@@ -28,6 +31,9 @@ function getAllowedCreateRolesFor(managerRole: string) {
   }
   if (managerRole === "dean") {
     return ["student", "tutor", "placement_coordinator", "hod"] as const;
+  }
+  if (managerRole === "principal" || managerRole === "mcr" || managerRole === "management_corporation") {
+    return ["student", "tutor", "placement_coordinator", "hod", "dean"] as const;
   }
   return [] as const;
 }
@@ -74,28 +80,120 @@ export async function createUserAction(formData: FormData) {
 
     const passwordHash = await bcrypt.hash(rawPassword.trim(), 12);
 
-    const [newUser] = await db.insert(users).values({
-      email,
-      passwordHash,
-      firstName,
-      lastName,
-      role,
-      isActive: true,
-    }).returning({ id: users.id });
+    const rawDepartment = formData.get("department") as string | null;
+    const department = rawDepartment ? sanitize(rawDepartment, "Department", 100) : null;
 
-    // Audit log
-    await db.insert(auditLogs).values({
-      userId: session.user.id,
-      action: "create_user",
-      entityType: "user",
-      entityId: newUser.id,
-      details: { createdEmail: email, assignedRole: role },
+    await db.transaction(async (tx) => {
+      const [newUser] = await tx.insert(users).values({
+        email,
+        passwordHash,
+        firstName,
+        lastName,
+        role,
+        department: role !== "student" ? department : null,
+        isActive: true,
+      }).returning({ id: users.id });
+
+      if (role === "student") {
+        const registerNo = sanitize(formData.get("registerNo") as string, "Register Number", 50);
+        const year = parseInt(formData.get("year") as string, 10);
+        const school = sanitize(formData.get("school") as string, "School", 100);
+        const section = sanitize(formData.get("section") as string, "Section", 100);
+        
+        const rawCourse = formData.get("course") as string;
+        const course = sanitize(rawCourse.split('|')[0] || rawCourse, "Course", 100);
+        
+        const rawProgramType = formData.get("programType") as string | null;
+        const programType = rawProgramType && rawProgramType.trim() !== "" ? sanitize(rawProgramType, "Program Type", 20) : null;
+        
+        const batchStartYear = formData.get("batchStartYear") ? parseInt(formData.get("batchStartYear") as string, 10) : null;
+        const batchEndYear = formData.get("batchEndYear") ? parseInt(formData.get("batchEndYear") as string, 10) : null;
+
+        if (!Number.isInteger(year) || year < 1) {
+          throw new Error("Student year is required.");
+        }
+
+        await tx.insert(studentProfiles).values({
+          userId: newUser.id,
+          registerNo,
+          year,
+          school,
+          section,
+          course,
+          programType,
+          department: department || "General",
+          batchStartYear,
+          batchEndYear,
+        });
+      }
+
+      // Auto-create authority_mappings for staff roles so they have immediate visibility
+      if (["tutor", "placement_coordinator", "hod", "dean"].includes(role)) {
+        const staffSchool = formData.get("school") as string | null;
+        const staffSection = formData.get("section") as string | null;
+        
+        const rawStaffCourse = formData.get("course") as string | null;
+        const staffCourse = rawStaffCourse ? rawStaffCourse.split('|')[0] : null;
+        const staffProgramType = formData.get("programType") as string | null;
+        const staffYear = formData.get("year") as string | null;
+        const staffBatchStartYear = formData.get("batchStartYear") as string | null;
+        const staffBatchEndYear = formData.get("batchEndYear") as string | null;
+
+        if (role === "dean") {
+          const mappingValues: Record<string, unknown> = {
+            school: staffSchool || "General",
+            section: DEAN_SCOPE_SECTION,
+            year: DEAN_SCOPE_YEAR,
+            updatedBy: session.user.id,
+            deanId: newUser.id,
+          };
+          if (department) mappingValues.department = department;
+          await tx.insert(authorityMappings).values(mappingValues as typeof authorityMappings.$inferInsert);
+        } else if (department && staffSection) {
+          const parsedYear = staffYear ? parseInt(staffYear, 10) : role === "tutor" ? NaN : DEAN_SCOPE_YEAR;
+          if (role === "tutor" && (!Number.isInteger(parsedYear) || parsedYear < 1)) {
+            throw new Error("Tutor scope requires a valid year.");
+          }
+
+          const mappingValues: Record<string, unknown> = {
+            department: department,
+            section: staffSection,
+            year: Number.isInteger(parsedYear) ? parsedYear : DEAN_SCOPE_YEAR,
+            updatedBy: session.user.id,
+          };
+
+          if (staffSchool) mappingValues.school = staffSchool;
+          if (staffCourse) mappingValues.course = staffCourse;
+          if (staffProgramType) mappingValues.programType = staffProgramType;
+          if (staffBatchStartYear) mappingValues.batchStartYear = parseInt(staffBatchStartYear, 10);
+          if (staffBatchEndYear) mappingValues.batchEndYear = parseInt(staffBatchEndYear, 10);
+
+          // Set the appropriate role column
+          if (role === "tutor") mappingValues.tutorId = newUser.id;
+          if (role === "placement_coordinator") mappingValues.placementCoordinatorId = newUser.id;
+          if (role === "hod") mappingValues.hodId = newUser.id;
+
+          await tx.insert(authorityMappings).values(mappingValues as typeof authorityMappings.$inferInsert);
+        }
+      }
+
+      // Audit log
+      await tx.insert(auditLogs).values({
+        userId: session.user.id,
+        action: "create_user",
+        entityType: "user",
+        entityId: newUser.id,
+        details: { createdEmail: email, assignedRole: role },
+      });
     });
 
     revalidatePath("/users");
     return { success: true };
   } catch (err: unknown) {
     if (err instanceof Error && err.name === "ValidationError") {
+      return { error: err.message };
+    }
+    if (err instanceof Error && err.message) {
       return { error: err.message };
     }
     console.error("Create user error:", err);
@@ -272,4 +370,3 @@ export async function generateCompanyInvitation(formData: FormData) {
     return { error: "Failed to generate invitation link." };
   }
 }
-

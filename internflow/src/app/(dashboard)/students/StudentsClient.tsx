@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GraduationCap, Award, CheckSquare, Square, Search, Mail, Download, Eye } from "lucide-react";
+import { GraduationCap, Award, CheckSquare, Square, Search, Mail, Download, Eye, Filter } from "lucide-react";
 import Link from "next/link";
 
 type StudentRow = {
@@ -30,7 +30,23 @@ type StudentRow = {
 
 
 
-export default function StudentsClient({ initialStudents, queryParam }: { initialStudents: StudentRow[], queryParam: string }) {
+export default function StudentsClient({ 
+  initialStudents, 
+  queryParam,
+  activeFilters,
+  filtersRequired = false 
+}: { 
+  initialStudents: StudentRow[], 
+  queryParam: string,
+  activeFilters: {
+    school: string;
+    department: string;
+    course: string;
+    year: string;
+    section: string;
+  };
+  filtersRequired?: boolean 
+}) {
   const [students] = useState<StudentRow[]>(initialStudents);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -101,6 +117,36 @@ export default function StudentsClient({ initialStudents, queryParam }: { initia
         </form>
       </div>
 
+      <form method="GET" className="card" style={{ display: "grid", gap: "var(--space-3)", padding: "var(--space-4)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-2)" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: "1rem" }}>Filter Students</h2>
+            <p style={{ margin: "4px 0 0 0", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+              Narrow the list by school, department, class, and section.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+            <button type="submit" className="btn btn-primary">Apply Filters</button>
+            <Link href="/students" className="btn btn-outline" style={{ textDecoration: "none" }}>
+              Reset
+            </Link>
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-3)" }}>
+          <input type="search" name="q" placeholder="Name or email" defaultValue={queryParam} className="input-field" />
+          <input type="text" name="school" placeholder="School" defaultValue={activeFilters.school} className="input-field" />
+          <input type="text" name="department" placeholder="Department" defaultValue={activeFilters.department} className="input-field" />
+          <input type="text" name="course" placeholder="Course" defaultValue={activeFilters.course} className="input-field" />
+          <select name="year" defaultValue={activeFilters.year} className="input-field">
+            <option value="">All Years</option>
+            {[1, 2, 3, 4, 5].map((year) => (
+              <option key={year} value={year}>Year {year}</option>
+            ))}
+          </select>
+          <input type="text" name="section" placeholder="Section" defaultValue={activeFilters.section} className="input-field" />
+        </div>
+      </form>
+
       {/* Bulk Actions Toolbar (Animated) */}
       <AnimatePresence>
         {selectedIds.size > 0 && (
@@ -139,7 +185,7 @@ export default function StudentsClient({ initialStudents, queryParam }: { initia
 
       {/* Export All (always visible) */}
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-3)" }}>
-        <button onClick={exportCSV} className="btn btn-outline" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", fontSize: "0.875rem" }}>
+        <button onClick={exportCSV} className="btn btn-outline" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", fontSize: "0.875rem", opacity: students.length === 0 ? 0.5 : 1, pointerEvents: students.length === 0 ? "none" : "auto" }}>
           <Download size={16} /> Export CSV
         </button>
       </div>
@@ -160,7 +206,22 @@ export default function StudentsClient({ initialStudents, queryParam }: { initia
               </tr>
             </thead>
             <tbody>
-              {students.length === 0 ? (
+              {filtersRequired ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--text-secondary)" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-4)" }}>
+                      <Filter size={48} color="var(--text-muted)" />
+                      <div style={{ maxWidth: "400px" }}>
+                        <h3 style={{ margin: "0 0 8px 0", color: "var(--text-primary)" }}>Please Apply Filters</h3>
+                        <p style={{ margin: 0, fontSize: "0.875rem" }}>
+                          As an administrator, loading the entire student directory may degrade performance. 
+                          Please search by name/email or use the URL parameters to filter by school, department, course, or year.
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : students.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--text-secondary)" }}>
                     No students found.

@@ -1,13 +1,15 @@
 import { db } from "@/lib/db";
-import { studentProfiles, users } from "@/lib/db/schema";
+import { authorityMappings, studentProfiles, users } from "@/lib/db/schema";
 import { sql, ilike, or, eq, and, type SQL } from "drizzle-orm";
 import { Mail, Shield, Clock, Plus } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { buildManagedUsersCondition, getManagedUserRoles } from "@/lib/authority-scope";
+import { buildManagedUsersCondition, getAuthorityMappingsForRole, getManagedUserRoles } from "@/lib/authority-scope";
+import { getCollegeHierarchy } from "@/app/actions/hierarchy";
 import DeleteUserButton from "./DeleteUserButton";
+import { StaffScopeEditorButton } from "./StaffScopeEditorButton";
 
 export default async function UsersPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
   const session = await auth();
@@ -20,6 +22,10 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
   const pageSize = 20;
   const offset = (page - 1) * pageSize;
   const canManageUsers = ["tutor", "placement_coordinator", "hod", "dean"].includes(userRole);
+  const scopeMappings = canManageUsers && session?.user?.id
+    ? await getAuthorityMappingsForRole(session.user.id, userRole)
+    : [];
+  const collegeHierarchy = canManageUsers ? await getCollegeHierarchy() : [];
 
   async function deleteUser(formData: FormData) {
     "use server";
@@ -103,6 +109,18 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
     .where(whereClause);
   const totalCount = Number(countResult[0]?.count || 0);
   const totalPages = Math.ceil(totalCount / pageSize);
+  const userIds = allUsers.map((user) => user.id);
+  const relatedMappings = userIds.length > 0 ? await db.select().from(authorityMappings) : [];
+  const mappingByUserId = new Map(
+    relatedMappings.flatMap((mapping) => {
+      const pairs: Array<[string, typeof mapping]> = [];
+      if (mapping.tutorId) pairs.push([mapping.tutorId, mapping]);
+      if (mapping.placementCoordinatorId) pairs.push([mapping.placementCoordinatorId, mapping]);
+      if (mapping.hodId) pairs.push([mapping.hodId, mapping]);
+      if (mapping.deanId) pairs.push([mapping.deanId, mapping]);
+      return pairs;
+    })
+  );
 
   return (
     <div className="animate-fade-in">
@@ -142,6 +160,32 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
           <button type="submit" className="button">Filter</button>
         </form>
       </div>
+
+      {scopeMappings.length > 0 && (
+        <div className="card" style={{ marginBottom: "var(--space-4)" }}>
+          <h2 style={{ marginTop: 0, fontSize: "1rem" }}>My Management Scope</h2>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginTop: "6px" }}>
+            These hierarchy assignments decide which students, tutors, PCs, and HODs you can see here.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--space-3)", marginTop: "var(--space-3)" }}>
+            {scopeMappings.map((mapping) => (
+              <div key={mapping.id} style={{ border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", background: "var(--bg-secondary)" }}>
+                <div style={{ fontWeight: 600, marginBottom: "var(--space-2)", textTransform: "capitalize" }}>
+                  {userRole.replaceAll("_", " ")}
+                </div>
+                <div style={{ display: "grid", gap: "6px", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+                  {mapping.school && <div>School: {mapping.school}</div>}
+                  {mapping.department && <div>Department: {mapping.department}</div>}
+                  {mapping.course && <div>Course: {mapping.course}</div>}
+                  {mapping.programType && <div>Program: {mapping.programType}</div>}
+                  {mapping.section && mapping.section !== "ALL" && <div>Section: {mapping.section}</div>}
+                  {mapping.year && mapping.year > 0 && <div>Year: {mapping.year}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div style={{ overflowX: "auto" }}>
@@ -188,6 +232,22 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
                       </div>
                     </td>
                     <td style={{ padding: "var(--space-4)", textAlign: "center" }}>
+                      {canManageUsers && ["tutor", "placement_coordinator", "hod", "dean"].includes(user.role) && (
+                        <StaffScopeEditorButton
+                          user={{ id: user.id, role: user.role, name: `${user.firstName} ${user.lastName}` }}
+                          collegeHierarchy={collegeHierarchy}
+                          initialScope={{
+                            school: mappingByUserId.get(user.id)?.school || "",
+                            section: mappingByUserId.get(user.id)?.section === "ALL" ? "" : mappingByUserId.get(user.id)?.section || "",
+                            course: mappingByUserId.get(user.id)?.course || "",
+                            programType: mappingByUserId.get(user.id)?.programType || "",
+                            department: mappingByUserId.get(user.id)?.department || "",
+                            year: mappingByUserId.get(user.id)?.year || 0,
+                            batchStartYear: mappingByUserId.get(user.id)?.batchStartYear || null,
+                            batchEndYear: mappingByUserId.get(user.id)?.batchEndYear || null,
+                          }}
+                        />
+                      )}
                       {canManageUsers && user.id !== session?.user?.id && (
                         <DeleteUserButton userId={user.id} userName={`${user.firstName} ${user.lastName}`} deleteAction={deleteUser} />
                       )}

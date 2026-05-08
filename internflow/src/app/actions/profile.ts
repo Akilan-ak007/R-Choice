@@ -14,6 +14,17 @@ type DbErrorWithCode = {
   detail?: string;
 };
 
+const STUDENT_MANAGER_ROLES = [
+  "tutor",
+  "placement_coordinator",
+  "hod",
+  "dean",
+  "placement_officer",
+  "principal",
+  "mcr",
+  "management_corporation",
+] as const;
+
 // Auto-create a minimal student profile if one doesn't exist.
 // This prevents "Profile missing" errors when students save education/skills/etc before basic info.
 async function ensureStudentProfile(userId: string): Promise<string> {
@@ -446,6 +457,90 @@ export async function fetchFullStudentProfile(studentId: string) {
   } catch (error) {
     console.error("Failed to fetch full student profile:", error);
     return { error: "Database error occurred." };
+  }
+}
+
+export async function updateStudentProfileByManager(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id || !STUDENT_MANAGER_ROLES.includes(session.user.role as (typeof STUDENT_MANAGER_ROLES)[number])) {
+    return { error: "Not authorized to update student records." };
+  }
+
+  const userId = String(formData.get("userId") || "").trim();
+  const registerNo = String(formData.get("registerNo") || "").trim();
+  const school = String(formData.get("school") || "").trim();
+  const section = String(formData.get("section") || "").trim();
+  const course = String(formData.get("course") || "").trim();
+  const programType = String(formData.get("programType") || "").trim();
+  const department = String(formData.get("department") || "").trim();
+  const year = Number(formData.get("year"));
+  const batchStartYearRaw = String(formData.get("batchStartYear") || "").trim();
+  const batchEndYearRaw = String(formData.get("batchEndYear") || "").trim();
+
+  if (!userId) return { error: "Student id is required." };
+  if (!registerNo) return { error: "Register number is required." };
+  if (!school || !section || !course || !department) {
+    return { error: "School, section, course, and department are required." };
+  }
+  if (!Number.isInteger(year) || year < 1 || year > 5) {
+    return { error: "Please choose a valid year." };
+  }
+
+  const batchStartYear = batchStartYearRaw ? Number(batchStartYearRaw) : null;
+  const batchEndYear = batchEndYearRaw ? Number(batchEndYearRaw) : null;
+
+  try {
+    const [targetUser] = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+    if (!targetUser || targetUser.role !== "student") {
+      return { error: "Student not found." };
+    }
+
+    const [existingProfile] = await db
+      .select({ id: studentProfiles.id })
+      .from(studentProfiles)
+      .where(eq(studentProfiles.userId, userId))
+      .limit(1);
+
+    if (existingProfile) {
+      await db
+        .update(studentProfiles)
+        .set({
+          registerNo,
+          school,
+          section,
+          course,
+          programType: programType || null,
+          department,
+          year,
+          batchStartYear,
+          batchEndYear,
+          updatedAt: new Date(),
+        })
+        .where(eq(studentProfiles.id, existingProfile.id));
+    } else {
+      await db.insert(studentProfiles).values({
+        userId,
+        registerNo,
+        school,
+        section,
+        course,
+        programType: programType || null,
+        department,
+        year,
+        batchStartYear,
+        batchEndYear,
+      });
+    }
+
+    revalidateStudentProfileViews(userId);
+    revalidatePath("/users");
+    return { success: true };
+  } catch (error: unknown) {
+    console.error("Manager student update error:", error);
+    if ((error as DbErrorWithCode).code === "23505") {
+      return { error: "Register number is already used by another student." };
+    }
+    return { error: error instanceof Error ? error.message : "Failed to update student profile." };
   }
 }
 

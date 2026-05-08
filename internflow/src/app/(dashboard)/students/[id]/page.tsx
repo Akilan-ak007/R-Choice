@@ -16,6 +16,8 @@ import {
   ArrowLeft, GraduationCap,
   User, Briefcase, Award, ExternalLink, Code, BookOpen
 } from "lucide-react";
+import { StudentHierarchyEditor } from "./StudentHierarchyEditor";
+import { getCollegeHierarchy } from "@/app/actions/hierarchy";
 
 const studentSectionStyle: React.CSSProperties = {
   background: "var(--bg-primary)",
@@ -84,6 +86,16 @@ export default async function StudentPortfolioPage(props: { params: Promise<{ id
   const params = await props.params;
   const session = await auth();
   if (!session?.user?.id) redirect("/");
+  const canRepairStudentScope = [
+    "tutor",
+    "placement_coordinator",
+    "hod",
+    "dean",
+    "placement_officer",
+    "principal",
+    "mcr",
+    "management_corporation",
+  ].includes(session.user.role || "");
 
   // Fetch student user
   const [studentUser] = await db
@@ -115,6 +127,7 @@ export default async function StudentPortfolioPage(props: { params: Promise<{ id
     projects = await db.select().from(studentProjects).where(eq(studentProjects.studentId, profile.id));
     education = await db.select().from(studentEducation).where(eq(studentEducation.studentId, profile.id));
   }
+  const collegeHierarchy = canRepairStudentScope ? await getCollegeHierarchy() : [];
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: "960px", margin: "0 auto", paddingBottom: "var(--space-8)" }}>
@@ -196,6 +209,29 @@ export default async function StudentPortfolioPage(props: { params: Promise<{ id
             <StudentField label="Batch" value={profile?.batchStartYear && profile?.batchEndYear ? `${profile.batchStartYear} - ${profile.batchEndYear}` : null} />
           </div>
         </div>
+
+        {canRepairStudentScope && (
+          <div style={studentSectionStyle}>
+            <div style={studentSectionHeaderStyle}>
+              <BookOpen size={18} color="var(--primary-color)" /> Repair Student Scope
+            </div>
+            <StudentHierarchyEditor
+              studentId={params.id}
+              initialValues={{
+                registerNo: profile?.registerNo || "",
+                school: profile?.school || "",
+                section: profile?.section || "",
+                course: profile?.course || "",
+                programType: profile?.programType || "",
+                department: profile?.department || "",
+                year: profile?.year || 1,
+                batchStartYear: profile?.batchStartYear || null,
+                batchEndYear: profile?.batchEndYear || null,
+              }}
+              collegeHierarchy={collegeHierarchy}
+            />
+          </div>
+        )}
 
         {/* Contact Info */}
         <div style={studentSectionStyle}>

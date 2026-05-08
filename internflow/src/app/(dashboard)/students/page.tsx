@@ -2,15 +2,26 @@ import { db } from "@/lib/db";
 import { users, studentProfiles } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
-import { buildStudentVisibilityCondition } from "@/lib/authority-scope";
+import { buildStudentVisibilityCondition, getAuthorityMappingsForRole } from "@/lib/authority-scope";
 import StudentsClient from "./StudentsClient";
 
 export default async function StudentsPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
   const searchParams = await props.searchParams;
   const queryParam = (searchParams.q || "").toLowerCase();
+  
+  // Extract filters from searchParams
+  const schoolFilter = searchParams.school;
+  const departmentFilter = searchParams.department;
+  const courseFilter = searchParams.course;
+  const yearFilter = searchParams.year;
+  const sectionFilter = searchParams.section;
+
   const session = await auth();
   const userRole = session?.user?.role;
   const userId = session?.user?.id;
+  const scopeMappings = userId && userRole
+    ? await getAuthorityMappingsForRole(userId, userRole)
+    : [];
 
   const hierarchyConditions = userId && userRole
     ? await buildStudentVisibilityCondition(userId, userRole)
@@ -18,43 +29,109 @@ export default async function StudentsPage(props: { searchParams: Promise<{ [key
 
   const baseConditions = [eq(users.role, "student")];
   if (hierarchyConditions) baseConditions.push(hierarchyConditions!);
+  
+  // Apply explicit filters if provided (mostly for full-access roles)
+  if (schoolFilter) baseConditions.push(eq(studentProfiles.school, schoolFilter));
+  if (departmentFilter) baseConditions.push(eq(studentProfiles.department, departmentFilter));
+  if (courseFilter) baseConditions.push(eq(studentProfiles.course, courseFilter));
+  if (yearFilter && Number.isInteger(Number(yearFilter))) {
+    baseConditions.push(eq(studentProfiles.year, Number(yearFilter)));
+  }
+  if (sectionFilter) baseConditions.push(eq(studentProfiles.section, sectionFilter));
+  
+  // High-level roles (admin, principal, dean) MUST apply at least one filter 
+  // to avoid loading thousands of students at once. 
+  // If no filters are applied, return empty array for them, OR just limit the query.
+  // We will pass down a flag to StudentsClient to tell it that filters are required.
+  const isHighLevelRole = ["admin", "principal", "dean"].includes(userRole || "");
+  const hasFilters = !!(schoolFilter || departmentFilter || courseFilter || yearFilter || sectionFilter || queryParam);
+  
+  // If it's a high-level role and no filters are applied, we don't query the DB yet.
+  let students: any[] = [];
+  const filtersRequired = isHighLevelRole && !hasFilters;
 
-  let students = await db
-    .select({
-      id: users.id,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      email: users.email,
-      department: studentProfiles.department,
-      year: studentProfiles.year,
-      section: studentProfiles.section,
-      school: studentProfiles.school,
-      program: studentProfiles.program,
-      course: studentProfiles.course,
-      batchStartYear: studentProfiles.batchStartYear,
-      batchEndYear: studentProfiles.batchEndYear,
-      phone: users.phone,
-      registerNo: studentProfiles.registerNo,
-      cgpa: studentProfiles.cgpa,
-      dob: studentProfiles.dob,
-      professionalSummary: studentProfiles.professionalSummary,
-      githubLink: studentProfiles.githubLink,
-      linkedinLink: studentProfiles.linkedinLink,
-      portfolioUrl: studentProfiles.portfolioUrl
-    })
-    .from(users)
-    .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
-    .where(and(...baseConditions));
+  if (!filtersRequired) {
+    let queryStudents = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        department: studentProfiles.department,
+        year: studentProfiles.year,
+        section: studentProfiles.section,
+        school: studentProfiles.school,
+        program: studentProfiles.program,
+        course: studentProfiles.course,
+        batchStartYear: studentProfiles.batchStartYear,
+        batchEndYear: studentProfiles.batchEndYear,
+        phone: users.phone,
+        registerNo: studentProfiles.registerNo,
+        cgpa: studentProfiles.cgpa,
+        dob: studentProfiles.dob,
+        professionalSummary: studentProfiles.professionalSummary,
+        githubLink: studentProfiles.githubLink,
+        linkedinLink: studentProfiles.linkedinLink,
+        portfolioUrl: studentProfiles.portfolioUrl
+      })
+      .from(users)
+      .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
+      .where(and(...baseConditions))
+      .limit(1000); // add limit to prevent huge loads even with filters
 
-  if (queryParam) {
-    students = students.filter(s => 
-      s.firstName.toLowerCase().includes(queryParam) || 
-      s.lastName.toLowerCase().includes(queryParam) ||
-      (s.email && s.email.toLowerCase().includes(queryParam))
-    );
+    if (queryParam) {
+      queryStudents = queryStudents.filter(s => 
+        s.firstName.toLowerCase().includes(queryParam) || 
+        s.lastName.toLowerCase().includes(queryParam) ||
+        (s.email && s.email.toLowerCase().includes(queryParam))
+      );
+    }
+    students = queryStudents;
   }
 
   return (
-    <StudentsClient initialStudents={students as any} queryParam={queryParam} />
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+      {scopeMappings.length > 0 && (
+        <div className="card" style={{ display: "grid", gap: "var(--space-3)" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: "1.05rem" }}>Your Student Visibility Scope</h2>
+            <p style={{ margin: "6px 0 0 0", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+              This card shows why students appear in your directory.
+            </p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--space-3)" }}>
+            {scopeMappings.map((mapping) => (
+              <div key={mapping.id} style={{ border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", background: "var(--bg-secondary)" }}>
+                <div style={{ fontWeight: 600, marginBottom: "var(--space-2)", textTransform: "capitalize" }}>
+                  {(userRole || "staff").replaceAll("_", " ")}
+                </div>
+                <div style={{ display: "grid", gap: "6px", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+                  {mapping.school && <div>School: {mapping.school}</div>}
+                  {mapping.department && <div>Department: {mapping.department}</div>}
+                  {mapping.course && <div>Course: {mapping.course}</div>}
+                  {mapping.programType && <div>Program: {mapping.programType}</div>}
+                  {mapping.section && mapping.section !== "ALL" && <div>Section: {mapping.section}</div>}
+                  {mapping.year && mapping.year > 0 && <div>Year: {mapping.year}</div>}
+                  {mapping.batchStartYear && mapping.batchEndYear && <div>Batch: {mapping.batchStartYear} - {mapping.batchEndYear}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <StudentsClient 
+        initialStudents={students as any} 
+        queryParam={queryParam}
+        activeFilters={{
+          school: schoolFilter || "",
+          department: departmentFilter || "",
+          course: courseFilter || "",
+          year: yearFilter || "",
+          section: sectionFilter || "",
+        }}
+        filtersRequired={filtersRequired}
+      />
+    </div>
   );
 }

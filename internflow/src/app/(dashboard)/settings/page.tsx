@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import Link from "next/link";
 import { User, Bell, Shield, Smartphone } from "lucide-react";
 import { db } from "@/lib/db";
 import ChangePasswordForm from "./ChangePasswordForm";
@@ -268,6 +269,31 @@ export default async function SettingsPage() {
                 Management Corporation can update this SLA. Your dashboard and escalation queue will automatically follow the active timing policy.
               </div>
             )}
+          </div>
+        )}
+
+        {["dean", "hod", "placement_officer", "principal", "mcr", "management_corporation"].includes(role) && (
+          <div className="card">
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-5)" }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "8px", backgroundColor: "rgba(220, 38, 38, 0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Shield size={20} color="#dc2626" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "4px" }}>Hierarchy Audit</h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
+                  Detect invalid student scope, broken staff mappings, and duplicate hierarchy rows.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
+              <Link href="/settings/hierarchy-audit" className="btn btn-primary" style={{ textDecoration: "none" }}>
+                Open Audit Page
+              </Link>
+              <Link href="/settings/hierarchy" className="btn btn-outline" style={{ textDecoration: "none" }}>
+                Open Hierarchy Settings
+              </Link>
+            </div>
           </div>
         )}
 

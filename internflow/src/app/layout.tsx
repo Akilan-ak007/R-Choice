@@ -34,12 +34,15 @@ export const viewport: Viewport = {
 };
 
 import { Providers } from "@/components/Providers";
+import { auth } from "@/lib/auth";
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
+
   return (
     <html lang="en" data-theme="light" suppressHydrationWarning>
       <body className={`${inter.variable} ${outfit.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
@@ -56,7 +59,7 @@ export default function RootLayout({
             `
           }}
         />
-        <Providers>
+        <Providers session={session}>
           {children}
         </Providers>
         <Toaster
@@ -75,3 +78,4 @@ export default function RootLayout({
     </html>
   );
 }
+

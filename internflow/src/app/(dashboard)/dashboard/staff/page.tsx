@@ -1,9 +1,12 @@
-import { Sparkles, AlertTriangle, ArrowRight } from "lucide-react";
+import { Sparkles, AlertTriangle, ArrowRight, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, internshipRequests } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
+import { getAuthorityMappingsForRole } from "@/lib/authority-scope";
+import { getCollegeHierarchy } from "@/app/actions/hierarchy";
+import { ScopeProvisionClient } from "./ScopeProvisionClient";
 
 type InternshipStatus = typeof internshipRequests.$inferSelect.status;
 
@@ -22,6 +25,12 @@ export default async function StaffDashboard() {
     principal: "pending_principal",
   };
   const pendingStatus = role ? statusMap[role] : null;
+
+  // Get mappings for "ID Card" scope
+  const mappings = (role && session?.user?.id) 
+    ? await getAuthorityMappingsForRole(session.user.id, role) 
+    : [];
+
   if (pendingStatus) {
     const [result] = await db
       .select({ value: count() })
@@ -59,12 +68,43 @@ export default async function StaffDashboard() {
         .limit(5)
     : [];
 
+  const collegeHierarchy = await getCollegeHierarchy();
+  const hasScope = mappings.length > 0;
+
   return (
     <div>
       <div className="page-header">
         <h1>Staff Dashboard</h1>
         <p>Manage approvals, view students, and track placement progress.</p>
       </div>
+
+      <ScopeProvisionClient collegeHierarchy={collegeHierarchy} hasScope={hasScope} role={role || ""} />
+
+      {mappings.length > 0 && (
+        <div className="card" style={{ marginBottom: "var(--space-6)" }}>
+          <h2 style={{ fontSize: "1.125rem", marginBottom: "var(--space-4)", display: "flex", alignItems: "center", gap: "8px" }}>
+            <UserCircle size={20} color="var(--primary-color, #2563eb)" /> My Responsibility Scope
+          </h2>
+          <div className="grid grid-2" style={{ gap: "var(--space-4)" }}>
+            {mappings.map((mapping, idx) => (
+              <div key={idx} style={{ padding: "var(--space-4)", border: "1px solid var(--border-color)", borderRadius: "var(--border-radius-md)", backgroundColor: "var(--bg-secondary)" }}>
+                <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: "var(--space-3)", textTransform: "capitalize", fontSize: "1rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "var(--space-2)" }}>
+                  {role?.replace("_", " ")} Role
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-2)", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+                  {mapping.school && <div><strong>School:</strong><br/>{mapping.school}</div>}
+                  {mapping.department && <div><strong>Department:</strong><br/>{mapping.department}</div>}
+                  {mapping.course && <div><strong>Course:</strong><br/>{mapping.course}</div>}
+                  {mapping.programType && <div><strong>Program:</strong><br/>{mapping.programType}</div>}
+                  {mapping.year ? <div><strong>Year:</strong><br/>{mapping.year}</div> : null}
+                  {mapping.section && <div><strong>Section:</strong><br/>{mapping.section}</div>}
+                  {mapping.batchStartYear && mapping.batchEndYear && <div><strong>Batch:</strong><br/>{mapping.batchStartYear} - {mapping.batchEndYear}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {pendingCount > 0 && (
         <div style={{

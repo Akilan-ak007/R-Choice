@@ -1,18 +1,34 @@
 import Link from "next/link";
-import { AdminKpiCards } from "./AdminKpiCards";
-import { ExportDataButton } from "@/components/dashboard/admin/ExportDataButton";
-import { GenerateLinkButton } from "@/components/dashboard/admin/GenerateLinkButton";
-import { db } from "@/lib/db";
-import { users, internshipRequests, companyRegistrations, jobResultPublications, odRaiseRequests, notifications } from "@/lib/db/schema";
+
 import { eq, count, inArray, sql } from "drizzle-orm";
+
+import { GenerateLinkButton } from "@/components/dashboard/admin/GenerateLinkButton";
+import { ExportDataButton } from "@/components/dashboard/admin/ExportDataButton";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import {
+  companyRegistrations,
+  internshipRequests,
+  jobResultPublications,
+  notifications,
+  odRaiseRequests,
+  users,
+} from "@/lib/db/schema";
 import { getMailDeliveryMode } from "@/lib/mail";
+
+import { AdminKpiCards } from "./AdminKpiCards";
+
+type QuickAction = {
+  href: string;
+  title: string;
+  description: string;
+  badge?: number;
+};
 
 export default async function AdminDashboard() {
   const session = await auth();
   const userRole = session?.user?.role || "";
 
-  // Fetch real KPI data
   const [pendingResult] = await db
     .select({ value: count() })
     .from(internshipRequests)
@@ -20,9 +36,7 @@ export default async function AdminDashboard() {
   const pendingApprovals = pendingResult?.value ?? 0;
 
   const [slaBreachResult] = await db
-    .select({
-      value: sql<number>`count(*)`,
-    })
+    .select({ value: sql<number>`count(*)` })
     .from(internshipRequests)
     .where(sql`
       ${internshipRequests.status} IN ('pending_tutor', 'pending_coordinator', 'pending_hod', 'pending_dean', 'pending_po', 'pending_coe', 'pending_principal')
@@ -43,7 +57,6 @@ export default async function AdminDashboard() {
     .where(eq(users.role, "company"));
   const totalCompanies = companiesResult?.value ?? 0;
 
-  // Calculate placement rate
   const [approvedResult] = await db
     .select({ value: count() })
     .from(internshipRequests)
@@ -51,7 +64,6 @@ export default async function AdminDashboard() {
   const approvedCount = approvedResult?.value ?? 0;
   const placementRate = activeStudents > 0 ? Math.round((approvedCount / activeStudents) * 100) : 0;
 
-  // Pending company registrations count (for MCR badge)
   const [pendingCompaniesResult] = await db
     .select({ value: count() })
     .from(companyRegistrations)
@@ -64,8 +76,8 @@ export default async function AdminDashboard() {
     .leftJoin(odRaiseRequests, eq(jobResultPublications.id, odRaiseRequests.resultPublicationId))
     .where(eq(jobResultPublications.resultStatus, "selected"));
   const pendingRaiseQueue = pendingRaiseResult?.value ?? 0;
-  const mailDeliveryMode = getMailDeliveryMode();
 
+  const mailDeliveryMode = getMailDeliveryMode();
   const [manualHandoffResult] =
     ["management_corporation", "mcr"].includes(userRole) && session?.user?.id
       ? await db
@@ -77,145 +89,98 @@ export default async function AdminDashboard() {
       : [{ value: 0 }];
   const pendingManualHandoffs = manualHandoffResult?.value ?? 0;
 
+  const quickActions: QuickAction[] = [
+    ["placement_officer", "management_corporation", "placement_head"].includes(userRole)
+      ? {
+          href: "/users/create",
+          title: "Create User",
+          description: "Add students, faculty, and admin accounts.",
+        }
+      : null,
+    ["placement_officer", "management_corporation", "mcr", "placement_head"].includes(userRole)
+      ? {
+          href: "/companies/review",
+          title: "Review Companies",
+          description: "Approve pending company registrations.",
+          badge: pendingCompanies,
+        }
+      : null,
+    ["placement_officer", "management_corporation", "mcr", "placement_head"].includes(userRole)
+      ? {
+          href: "/settings",
+          title: "OD SLA Settings",
+          description: "Review timing rules and overdue approvals.",
+          badge: slaBreaches,
+        }
+      : null,
+    ["dean", "placement_officer", "coe", "principal", "placement_head", "management_corporation", "mcr"].includes(userRole)
+      ? {
+          href: "/approvals/escalations",
+          title: "Escalation Board",
+          description: "Track breaches and upward escalations.",
+          badge: slaBreaches,
+        }
+      : null,
+    userRole === "placement_officer"
+      ? {
+          href: "/approvals/results",
+          title: "Raise OD Queue",
+          description: "Start OD approvals for selected students.",
+          badge: pendingRaiseQueue,
+        }
+      : null,
+  ].filter(Boolean) as QuickAction[];
+
   return (
     <div>
       <div className="page-header">
         <h1>Admin Dashboard</h1>
-        <p>Full platform overview — approvals, analytics, and management.</p>
+        <p>Full platform overview for approvals, hierarchy, and placement operations.</p>
       </div>
 
-      <AdminKpiCards 
-        pendingApprovals={pendingApprovals} 
-        activeStudents={activeStudents} 
-        totalCompanies={totalCompanies} 
+      <AdminKpiCards
+        pendingApprovals={pendingApprovals}
+        activeStudents={activeStudents}
+        totalCompanies={totalCompanies}
         placementRate={placementRate}
         slaBreaches={slaBreaches}
       />
 
-      <div className="grid grid-2">
+      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "var(--space-4)", alignItems: "start" }}>
         <div>
+          <div className="card" style={{ padding: "var(--space-5)", marginBottom: "var(--space-4)" }}>
+            <h2 style={{ marginTop: 0, marginBottom: "var(--space-3)" }}>Operations Snapshot</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-3)" }}>
+              <CompactMetric label="Pending approvals" value={pendingApprovals} />
+              <CompactMetric label="SLA breaches" value={slaBreaches} accent="#dc2626" />
+              <CompactMetric label="Approved internships" value={approvedCount} accent="var(--rathinam-green)" />
+            </div>
+          </div>
+
           <h2 style={{ marginBottom: "var(--space-4)" }}>Quick Actions</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {["placement_officer", "management_corporation", "placement_head"].includes(userRole) && (
-              <Link href="/users/create" style={{ textDecoration: "none", color: "inherit" }}>
-                <div className="card action-card">
-                  <p style={{ fontWeight: 600 }}>Create User Account</p>
-                  <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
-                    Add students, staff, or admin accounts
-                  </p>
-                </div>
-              </Link>
-            )}
-            {["placement_officer", "management_corporation", "mcr", "placement_head"].includes(userRole) && (
-              <Link href="/companies/review" style={{ textDecoration: "none", color: "inherit" }}>
-                <div className="card action-card">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <p style={{ fontWeight: 600 }}>Review Companies</p>
-                    {pendingCompanies > 0 && (
-                      <span style={{
-                        background: "var(--status-pending)",
-                        color: "white",
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: "12px",
-                        minWidth: "20px",
-                        textAlign: "center",
-                      }}>
-                        {pendingCompanies}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--space-3)" }}>
+            {quickActions.map((action) => (
+              <Link key={action.href} href={action.href} style={{ textDecoration: "none", color: "inherit" }}>
+                <div className="card action-card" style={{ height: "100%" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                    <p style={{ fontWeight: 600, margin: 0 }}>{action.title}</p>
+                    {action.badge ? (
+                      <span style={{ background: "var(--status-pending)", color: "white", fontSize: "0.75rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", minWidth: "24px", textAlign: "center" }}>
+                        {action.badge}
                       </span>
-                    )}
+                    ) : null}
                   </div>
-                  <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
-                    Approve pending company registrations
+                  <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: 0 }}>
+                    {action.description}
                   </p>
                 </div>
               </Link>
-            )}
-            {["placement_officer", "management_corporation", "mcr", "placement_head"].includes(userRole) && (
-              <Link href="/settings" style={{ textDecoration: "none", color: "inherit" }}>
-                <div className="card action-card">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <p style={{ fontWeight: 600 }}>OD SLA Settings</p>
-                    {slaBreaches > 0 && (
-                      <span style={{
-                        background: "#dc2626",
-                        color: "white",
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: "12px",
-                        minWidth: "20px",
-                        textAlign: "center",
-                      }}>
-                        {slaBreaches}
-                      </span>
-                    )}
-                  </div>
-                  <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
-                    Review the current approval timing policy and overdue OD approvals.
-                  </p>
-                </div>
-              </Link>
-            )}
-            {["dean", "placement_officer", "coe", "principal", "placement_head", "management_corporation", "mcr"].includes(userRole) && (
-              <Link href="/approvals/escalations" style={{ textDecoration: "none", color: "inherit" }}>
-                <div className="card action-card">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <p style={{ fontWeight: 600 }}>Escalation Dashboard</p>
-                    {slaBreaches > 0 && (
-                      <span style={{
-                        background: "#dc2626",
-                        color: "white",
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: "12px",
-                        minWidth: "20px",
-                        textAlign: "center",
-                      }}>
-                        {slaBreaches}
-                      </span>
-                    )}
-                  </div>
-                  <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
-                    See active breaches, upward escalations, and notification pressure by tier.
-                  </p>
-                </div>
-              </Link>
-            )}
-            {userRole === "placement_officer" && (
-              <Link href="/approvals/results" style={{ textDecoration: "none", color: "inherit" }}>
-                <div className="card action-card">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <p style={{ fontWeight: 600 }}>Raise OD Queue</p>
-                    {pendingRaiseQueue > 0 && (
-                      <span style={{
-                        background: "var(--status-pending)",
-                        color: "white",
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: "12px",
-                        minWidth: "20px",
-                        textAlign: "center",
-                      }}>
-                        {pendingRaiseQueue}
-                      </span>
-                    )}
-                  </div>
-                  <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
-                    Review company selections and manually start OD approvals
-                  </p>
-                </div>
-              </Link>
-            )}
+            ))}
             <ExportDataButton />
           </div>
 
-          {/* MCR-specific: Generate company onboarding links */}
           {["management_corporation", "mcr"].includes(userRole) && (
-            <div style={{ marginTop: "var(--space-6)" }}>
+            <div style={{ marginTop: "var(--space-5)" }}>
               <h2 style={{ marginBottom: "var(--space-4)" }}>Company Onboarding</h2>
               <div className="card" style={{ padding: "var(--space-5)" }}>
                 <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "var(--space-3)" }}>
@@ -242,11 +207,11 @@ export default async function AdminDashboard() {
                         Email delivery is disabled. Approved companies will need credentials shared manually from your dashboard notifications.
                       </div>
                     </div>
-                    {pendingManualHandoffs > 0 && (
+                    {pendingManualHandoffs > 0 ? (
                       <span style={{ background: "#b45309", color: "white", fontSize: "0.75rem", fontWeight: 700, padding: "4px 10px", borderRadius: "999px" }}>
                         {pendingManualHandoffs} pending
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -254,21 +219,60 @@ export default async function AdminDashboard() {
           )}
         </div>
 
-        <div>
-          <h2 style={{ marginBottom: "var(--space-4)" }}>Ongoing Internships</h2>
-          <div className="card" style={{ padding: "var(--space-6)", textAlign: "center" }}>
-            <p style={{ fontFamily: "var(--font-heading)", fontSize: "2.5rem", fontWeight: 700, color: "var(--rathinam-green)" }}>
-              {approvedCount}
-            </p>
-            <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "var(--space-4)" }}>
-              Active approved internships across all departments
-            </p>
-            <Link href="/reports/admin" className="btn btn-outline" style={{ display: "inline-flex", gap: "8px" }}>
+        <div style={{ display: "grid", gap: "var(--space-4)" }}>
+          <div className="card" style={{ padding: "var(--space-5)" }}>
+            <h2 style={{ marginTop: 0, marginBottom: "var(--space-3)" }}>Placement Performance</h2>
+            <div style={{ display: "grid", gap: "var(--space-3)" }}>
+              <PerformanceRow label="Placement rate" value={`${placementRate}%`} accent="var(--rathinam-green)" />
+              <PerformanceRow label="Approved internships" value={String(approvedCount)} />
+              <PerformanceRow label="Companies onboarded" value={String(totalCompanies)} />
+              <PerformanceRow label="Students tracked" value={String(activeStudents)} />
+            </div>
+            <Link href="/reports/admin" className="btn btn-outline" style={{ display: "inline-flex", gap: "8px", marginTop: "var(--space-4)" }}>
               View Detailed Reports
             </Link>
           </div>
+
+          <div className="card" style={{ padding: "var(--space-5)" }}>
+            <h2 style={{ marginTop: 0, marginBottom: "var(--space-2)" }}>Leadership Notes</h2>
+            <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "var(--space-3)" }}>
+              Keep hierarchy mappings aligned before reviewing approvals so HOD, PC, tutor, and student visibility stays in sync.
+            </p>
+            <div style={{ display: "grid", gap: "var(--space-2)" }}>
+              <Link href="/settings/hierarchy" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>
+                Open Hierarchy Settings
+              </Link>
+              <Link href="/settings/hierarchy-audit" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>
+                Open Hierarchy Audit
+              </Link>
+              <Link href="/students" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>
+                Open Student Directory
+              </Link>
+              <Link href="/users" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>
+                Open User Management
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CompactMetric({ label, value, accent }: { label: string; value: number; accent?: string }) {
+  return (
+    <div style={{ padding: "var(--space-3)", borderRadius: "12px", background: "var(--bg-secondary)" }}>
+      <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{label}</div>
+      <div style={{ fontSize: "1.5rem", fontWeight: 700, color: accent || "var(--text-primary)" }}>{value}</div>
+    </div>
+  );
+}
+
+function PerformanceRow({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "var(--space-3)", borderRadius: "12px", background: "var(--bg-secondary)" }}>
+      <span style={{ color: "var(--text-secondary)" }}>{label}</span>
+      <strong style={{ color: accent || "var(--text-primary)" }}>{value}</strong>
     </div>
   );
 }
