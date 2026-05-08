@@ -16,6 +16,7 @@ type StudentAudit = {
   name: string;
   email: string;
   issues: string[];
+  recommendation: string;
   repairHref: string;
 };
 
@@ -25,6 +26,7 @@ type StaffAudit = {
   email: string;
   role: string;
   issues: string[];
+  recommendation: string;
   repairHref: string;
 };
 
@@ -32,6 +34,7 @@ type MappingAudit = {
   label: string;
   issue: string;
   issues: string[];
+  recommendation?: string;
   keeperId?: string;
   duplicateIds?: string[];
   canMerge?: boolean;
@@ -134,6 +137,7 @@ export default async function HierarchyAuditPage() {
         name: `${student.firstName} ${student.lastName}`,
         email: student.email,
         issues,
+        recommendation: "Open the student profile and repair school, class, section, department, and year so the correct manager scope can pick up this record.",
         repairHref: `/students/${student.userId}`,
       };
     })
@@ -194,6 +198,7 @@ export default async function HierarchyAuditPage() {
         email: staff.email,
         role: staff.role,
         issues: Array.from(new Set(issues)),
+        recommendation: "Open User Management and fix the staff scope mapping so their school and department visibility matches the intended academic hierarchy.",
         repairHref: `/users?role=${encodeURIComponent(staff.role)}&q=${encodeURIComponent(staff.email)}`,
       };
     })
@@ -240,6 +245,9 @@ export default async function HierarchyAuditPage() {
           `Found ${mappingIds.length} rows for the same scope.`,
           `Recommended keeper row: ${keeper.id.slice(0, 8)}`,
         ],
+        recommendation: canMerge
+          ? "Use the merge action to keep the strongest row and remove the safe duplicates."
+          : "Review these rows manually in hierarchy settings because role assignments conflict.",
         keeperId: keeper.id,
         duplicateIds: sortedRows.slice(1).map((row) => row.id),
         canMerge,
@@ -277,15 +285,23 @@ export default async function HierarchyAuditPage() {
           label: key,
           issue: "Same staff member is assigned to multiple distinct scopes",
           issues: distinctScopes,
+          recommendation: "Review the staff member in hierarchy settings and keep only the scope rows that match their real assignment.",
         });
       }
     }
 
   return (
-    <div className="animate-fade-in">
-      <div className="page-header">
+    <div className="dashboard-shell animate-fade-in">
+      <section className="hero-panel">
+        <div className="page-header" style={{ marginBottom: 0 }}>
+          <span className="hero-badge" style={{ marginBottom: "var(--space-3)" }}>Repair Center</span>
+          <h1>Hierarchy Audit</h1>
+          <p>Review broken student records, missing staff scope, duplicate mappings, and the next recommended fix for each problem.</p>
+        </div>
+      </section>
+
+      <div className="page-header" style={{ marginBottom: 0 }}>
         <h1>Hierarchy Audit</h1>
-        <p>Review broken student records, missing staff scope, and duplicate or conflicting authority mappings.</p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--space-4)", marginBottom: "var(--space-5)" }}>
@@ -306,6 +322,7 @@ export default async function HierarchyAuditPage() {
               title={student.name}
               subtitle={student.email}
               issues={student.issues}
+              recommendation={student.recommendation}
               href={student.repairHref}
               linkLabel="Fix now"
             />
@@ -323,6 +340,7 @@ export default async function HierarchyAuditPage() {
               title={`${staff.name} (${roleLabel(staff.role)})`}
               subtitle={staff.email}
               issues={staff.issues}
+              recommendation={staff.recommendation}
               href={staff.repairHref}
               linkLabel="Fix now"
             />
@@ -344,6 +362,7 @@ export default async function HierarchyAuditPage() {
                 title={mapping.issue}
                 subtitle={mapping.label}
                 issues={mapping.issues}
+                recommendation={mapping.recommendation}
                 keeperId={mapping.keeperId}
                 duplicateIds={mapping.duplicateIds}
                 rows={mapping.rows}
@@ -355,6 +374,7 @@ export default async function HierarchyAuditPage() {
                 title={mapping.issue}
                 subtitle={mapping.label}
                 issues={mapping.issues}
+                recommendation={mapping.recommendation}
                 href="/settings/hierarchy"
                 linkLabel="Fix now"
               />
@@ -416,26 +436,40 @@ function AuditCard({
   title,
   subtitle,
   issues,
+  recommendation,
   href,
   linkLabel,
 }: {
   title: string;
   subtitle: string;
   issues: string[];
+  recommendation?: string;
   href: string;
   linkLabel: string;
 }) {
+  const severity = issues.length >= 3 ? "high" : issues.length === 2 ? "medium" : "low";
   return (
     <div style={{ border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", background: "var(--bg-secondary)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "var(--space-2)", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontWeight: 600 }}>{title}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+            <div style={{ fontWeight: 600 }}>{title}</div>
+            <span className={`severity-badge severity-${severity}`}>
+              {severity === "high" ? "High severity" : severity === "medium" ? "Needs review" : "Minor issue"}
+            </span>
+          </div>
           <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>{subtitle}</div>
         </div>
         <Link href={href} className="btn btn-outline" style={{ textDecoration: "none" }}>
           {linkLabel}
         </Link>
       </div>
+      {recommendation && (
+        <div className="recommendation-panel" style={{ marginBottom: "var(--space-3)" }}>
+          <div style={{ fontWeight: 700, marginBottom: "4px" }}>Recommended fix</div>
+          <div style={{ fontSize: "0.84rem", color: "var(--text-secondary)" }}>{recommendation}</div>
+        </div>
+      )}
       <div style={{ display: "grid", gap: "6px" }}>
         {issues.map((issue, index) => (
           <div key={index} style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>

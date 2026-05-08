@@ -90,34 +90,35 @@ export default async function StudentsPage(props: { searchParams: Promise<{ [key
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+    <div className="dashboard-shell animate-fade-in">
       {scopeMappings.length > 0 && (
-        <div className="card" style={{ display: "grid", gap: "var(--space-3)" }}>
+        <section className="hero-panel" style={{ padding: "var(--space-6)" }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: "1.05rem" }}>Your Student Visibility Scope</h2>
+            <span className="hero-badge" style={{ marginBottom: "var(--space-3)" }}>Student visibility map</span>
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Your Student Visibility Scope</h2>
             <p style={{ margin: "6px 0 0 0", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-              This card shows why students appear in your directory.
+              This identity view explains why students appear in your directory and how class-based filtering works for your role.
             </p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--space-3)" }}>
+          <div className="scope-grid">
             {scopeMappings.map((mapping) => (
-              <div key={mapping.id} style={{ border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", background: "var(--bg-secondary)" }}>
-                <div style={{ fontWeight: 600, marginBottom: "var(--space-2)", textTransform: "capitalize" }}>
+              <div key={mapping.id} className="scope-card">
+                <div className="scope-card-title">
                   {(userRole || "staff").replaceAll("_", " ")}
                 </div>
-                <div style={{ display: "grid", gap: "6px", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-                  {mapping.school && <div>School: {mapping.school}</div>}
-                  {mapping.department && <div>Department: {mapping.department}</div>}
-                  {mapping.course && <div>Course: {mapping.course}</div>}
-                  {mapping.programType && <div>Program: {mapping.programType}</div>}
-                  {mapping.section && mapping.section !== "ALL" && <div>Section: {mapping.section}</div>}
-                  {mapping.year && mapping.year > 0 && <div>Year: {mapping.year}</div>}
-                  {mapping.batchStartYear && mapping.batchEndYear && <div>Batch: {mapping.batchStartYear} - {mapping.batchEndYear}</div>}
+                <div className="scope-meta">
+                  {mapping.school && <span className="scope-chip">School: {mapping.school}</span>}
+                  {mapping.department && <span className="scope-chip">Dept: {mapping.department}</span>}
+                  {mapping.course && <span className="scope-chip">Class: {mapping.course}</span>}
+                  {mapping.programType && <span className="scope-chip">Program: {mapping.programType}</span>}
+                  {mapping.section && mapping.section !== "ALL" && <span className="scope-chip">Section: {mapping.section}</span>}
+                  {mapping.year && mapping.year > 0 && <span className="scope-chip">Year: {mapping.year}</span>}
+                  {mapping.batchStartYear && mapping.batchEndYear && <span className="scope-chip">Batch: {mapping.batchStartYear} - {mapping.batchEndYear}</span>}
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       <StudentsClient 

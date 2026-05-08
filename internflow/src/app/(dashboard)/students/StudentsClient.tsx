@@ -96,12 +96,15 @@ export default function StudentsClient({
 
   return (
     <div className="animate-fade-in">
-      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-4)" }}>
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "end", flexWrap: "wrap", gap: "var(--space-4)" }}>
         <div>
           <h1>Student Directory</h1>
-          <p>Comprehensive list of all registered students and their academic profiles.</p>
+          <p>Find students by class, school, department, and year with a cleaner, role-aware workflow.</p>
         </div>
-        <form method="GET" style={{ display: "flex", gap: "var(--space-2)" }}>
+        <form method="GET" className="toolbar-card" style={{ minWidth: "min(100%, 360px)" }}>
+          <div style={{ fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--text-secondary)" }}>
+            Quick search
+          </div>
           <div style={{ position: "relative" }}>
             <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)" }} />
             <input 
@@ -117,12 +120,12 @@ export default function StudentsClient({
         </form>
       </div>
 
-      <form method="GET" className="card" style={{ display: "grid", gap: "var(--space-3)", padding: "var(--space-4)" }}>
+      <form method="GET" className="toolbar-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-2)" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: "1rem" }}>Filter Students</h2>
             <p style={{ margin: "4px 0 0 0", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-              Narrow the list by school, department, class, and section.
+              Choose class details first. This keeps the list accurate and avoids showing irrelevant students.
             </p>
           </div>
           <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
@@ -132,7 +135,7 @@ export default function StudentsClient({
             </Link>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-3)" }}>
+        <div className="filter-grid">
           <input type="search" name="q" placeholder="Name or email" defaultValue={queryParam} className="input-field" />
           <input type="text" name="school" placeholder="School" defaultValue={activeFilters.school} className="input-field" />
           <input type="text" name="department" placeholder="Department" defaultValue={activeFilters.department} className="input-field" />
@@ -147,7 +150,6 @@ export default function StudentsClient({
         </div>
       </form>
 
-      {/* Bulk Actions Toolbar (Animated) */}
       <AnimatePresence>
         {selectedIds.size > 0 && (
           <motion.div 
@@ -169,7 +171,7 @@ export default function StudentsClient({
             }}
           >
             <div style={{ fontWeight: "bold", color: "var(--color-primary)" }}>
-              {selectedIds.size} students selected
+              {selectedIds.size} student{selectedIds.size === 1 ? "" : "s"} selected
             </div>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <button onClick={exportCSV} className="btn btn-primary" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px" }}>
@@ -183,8 +185,10 @@ export default function StudentsClient({
         )}
       </AnimatePresence>
 
-      {/* Export All (always visible) */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-3)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
+        <div style={{ color: "var(--text-secondary)", fontSize: "0.88rem" }}>
+          {students.length} visible record{students.length === 1 ? "" : "s"}
+        </div>
         <button onClick={exportCSV} className="btn btn-outline" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", fontSize: "0.875rem", opacity: students.length === 0 ? 0.5 : 1, pointerEvents: students.length === 0 ? "none" : "auto" }}>
           <Download size={16} /> Export CSV
         </button>
@@ -224,7 +228,7 @@ export default function StudentsClient({
               ) : students.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--text-secondary)" }}>
-                    No students found.
+                    No students match the current class, department, or search filters.
                   </td>
                 </tr>
               ) : (
@@ -270,12 +274,16 @@ export default function StudentsClient({
                             <GraduationCap size={14} />
                             {student.department || "Unassigned"}
                           </div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "8px" }}>
+                            {student.school || "No school"} {student.course ? `• ${student.course}` : ""}
+                          </div>
                         </td>
                         <td style={{ padding: "var(--space-4)", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-                          <div style={{ display: "flex", gap: "16px" }}>
+                          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
                             <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                               <Award size={14} /> Year {student.year || "-"}
                             </span>
+                            <span>Section {student.section || "-"}</span>
                           </div>
                         </td>
                         <td style={{ padding: "var(--space-4)" }}>

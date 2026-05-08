@@ -46,6 +46,14 @@ export function StudentHierarchyEditor({ studentId, initialValues, collegeHierar
   const suggestedProgramType = course && !programType && matchingCourseNodes.length === 1 ? matchingCourseNodes[0].programType : "";
   const suggestedDepartment = programType && !department && departments.length === 1 ? departments[0].name : "";
   const hasSuggestion = !!(suggestedCourse || suggestedProgramType || suggestedDepartment);
+  const scopePreview = [
+    school && `School: ${school}`,
+    section && `Section: ${section}`,
+    course && `Class: ${course}`,
+    programType && `Program: ${programType}`,
+    department && `Dept: ${department}`,
+    year && `Year: ${year}`,
+  ].filter(Boolean) as string[];
 
   const handleSubmit = () => {
     startTransition(async () => {
@@ -72,6 +80,18 @@ export function StudentHierarchyEditor({ studentId, initialValues, collegeHierar
 
   return (
     <div style={{ display: "grid", gap: "var(--space-4)" }}>
+      <div className="recommendation-panel">
+        <div style={{ fontWeight: 700, marginBottom: "6px" }}>Live repair preview</div>
+        <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "var(--space-3)" }}>
+          Update the student only after this scope preview matches the correct school, class, section, department, and year.
+        </div>
+        <div className="scope-meta">
+          {scopePreview.length > 0 ? scopePreview.map((item) => <span key={item} className="scope-chip">{item}</span>) : <span className="scope-chip">Scope incomplete</span>}
+          {registerNo && <span className="scope-chip">Register No: {registerNo}</span>}
+          {batchStartYear && batchEndYear && <span className="scope-chip">Batch: {batchStartYear} - {batchEndYear}</span>}
+        </div>
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--space-3)" }}>
         <Field label="Register Number">
           <input value={registerNo} onChange={(e) => setRegisterNo(e.target.value)} className="input-field" />
@@ -206,7 +226,7 @@ export function StudentHierarchyEditor({ studentId, initialValues, collegeHierar
         </div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
+      <div className="sticky-action-bar">
         <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.875rem" }}>
           Use this to repair wrong school, class, or department assignments when students are hidden from the correct manager scope.
         </p>

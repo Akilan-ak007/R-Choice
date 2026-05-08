@@ -211,9 +211,15 @@ export default async function StudentPortfolioPage(props: { params: Promise<{ id
         </div>
 
         {canRepairStudentScope && (
-          <div style={studentSectionStyle}>
+          <div style={{ ...studentSectionStyle, background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(244,249,255,0.94))" }}>
             <div style={studentSectionHeaderStyle}>
               <BookOpen size={18} color="var(--primary-color)" /> Repair Student Scope
+            </div>
+            <div className="recommendation-panel">
+              <div style={{ fontWeight: 700, marginBottom: "4px" }}>Recommended fix workflow</div>
+              <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                First confirm the student&apos;s real school and class. Then repair section, department, and year so the correct tutor, HOD, dean, and PC can see this record automatically.
+              </div>
             </div>
             <StudentHierarchyEditor
               studentId={params.id}

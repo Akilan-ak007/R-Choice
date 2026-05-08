@@ -20,6 +20,7 @@ export function DuplicateMappingAuditCard({
   title,
   subtitle,
   issues,
+  recommendation,
   keeperId,
   duplicateIds,
   rows,
@@ -28,6 +29,7 @@ export function DuplicateMappingAuditCard({
   title: string;
   subtitle: string;
   issues: string[];
+  recommendation?: string;
   keeperId: string;
   duplicateIds: string[];
   rows: MappingRow[];
@@ -53,7 +55,12 @@ export function DuplicateMappingAuditCard({
     <div style={{ border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", background: "var(--bg-secondary)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "var(--space-2)", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontWeight: 600 }}>{title}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+            <div style={{ fontWeight: 600 }}>{title}</div>
+            <span className={`severity-badge ${canMerge ? "severity-medium" : "severity-high"}`}>
+              {canMerge ? "Safe merge available" : "Conflict detected"}
+            </span>
+          </div>
           <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>{subtitle}</div>
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -65,6 +72,13 @@ export function DuplicateMappingAuditCard({
           </button>
         </div>
       </div>
+
+      {recommendation && (
+        <div className="recommendation-panel" style={{ marginBottom: "var(--space-3)" }}>
+          <div style={{ fontWeight: 700, marginBottom: "4px" }}>Recommended fix</div>
+          <div style={{ fontSize: "0.84rem", color: "var(--text-secondary)" }}>{recommendation}</div>
+        </div>
+      )}
 
       <div style={{ display: "grid", gap: "6px", marginBottom: "var(--space-3)" }}>
         {issues.map((issue, index) => (
