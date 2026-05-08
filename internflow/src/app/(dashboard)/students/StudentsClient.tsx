@@ -34,7 +34,8 @@ export default function StudentsClient({
   initialStudents, 
   queryParam,
   activeFilters,
-  filtersRequired = false 
+  filtersRequired = false,
+  role,
 }: { 
   initialStudents: StudentRow[], 
   queryParam: string,
@@ -45,10 +46,12 @@ export default function StudentsClient({
     year: string;
     section: string;
   };
-  filtersRequired?: boolean 
+  filtersRequired?: boolean;
+  role: string;
 }) {
   const [students] = useState<StudentRow[]>(initialStudents);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const hideSchoolDepartmentFilters = role === "placement_coordinator" || role === "hod";
 
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
@@ -137,8 +140,8 @@ export default function StudentsClient({
         </div>
         <div className="filter-grid">
           <input type="search" name="q" placeholder="Name or email" defaultValue={queryParam} className="input-field" />
-          <input type="text" name="school" placeholder="School" defaultValue={activeFilters.school} className="input-field" />
-          <input type="text" name="department" placeholder="Department" defaultValue={activeFilters.department} className="input-field" />
+          {!hideSchoolDepartmentFilters ? <input type="text" name="school" placeholder="School" defaultValue={activeFilters.school} className="input-field" /> : null}
+          {!hideSchoolDepartmentFilters ? <input type="text" name="department" placeholder="Department" defaultValue={activeFilters.department} className="input-field" /> : null}
           <input type="text" name="course" placeholder="Course" defaultValue={activeFilters.course} className="input-field" />
           <select name="year" defaultValue={activeFilters.year} className="input-field">
             <option value="">All Years</option>
@@ -219,7 +222,7 @@ export default function StudentsClient({
                         <h3 style={{ margin: "0 0 8px 0", color: "var(--text-primary)" }}>Please Apply Filters</h3>
                         <p style={{ margin: 0, fontSize: "0.875rem" }}>
                           As an administrator, loading the entire student directory may degrade performance. 
-                          Please search by name/email or use the URL parameters to filter by school, department, course, or year.
+                          Please search by name/email or use filters to narrow by academic scope before loading records.
                         </p>
                       </div>
                     </div>

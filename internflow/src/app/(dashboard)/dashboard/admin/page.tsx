@@ -123,7 +123,7 @@ export default async function AdminDashboard() {
         slaBreaches={slaBreaches}
       />
 
-      <div className="dashboard-split">
+      <div className="grid grid-2">
         <div className="dashboard-shell">
           <div className="card-glass" style={{ padding: "var(--space-5)", borderRadius: "var(--border-radius-xl)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>

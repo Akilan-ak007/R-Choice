@@ -3,8 +3,9 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { authorityMappings, users, userRoleEnum } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getAuthorityMappingsForRole } from "@/lib/authority-scope";
 
 export async function fetchAuthorityMappings() {
   try {
@@ -32,8 +33,7 @@ export async function fetchStaffByRole(role: string) {
 export async function upsertMapping(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) return { error: "Not authenticated" };
-  // Allow Dean, HOD, placement_officer, principal
-  if (!["placement_officer", "principal", "dean", "hod"].includes(session.user.role)) {
+  if (!["dean", "hod"].includes(session.user.role)) {
     return { error: "Unauthorized" };
   }
 
@@ -46,20 +46,49 @@ export async function upsertMapping(formData: FormData) {
   const year = parseInt(formData.get("year") as string, 10);
   const tutorId = (formData.get("tutorId") as string) || null;
   
-  // If HOD, they can only edit PC/Tutor, Dean/HOD remains unchanged
-  // In frontend we disable the inputs, but here we can rely on existing if present
   let hodId = (formData.get("hodId") as string) || null;
   let deanId = (formData.get("deanId") as string) || null;
   const coordinatorId = (formData.get("coordinatorId") as string) || null;
 
   if (session.user.role === "hod") {
-    // If updating, preserve old HOD and Dean
-    if (id) {
-      const [existing] = await db.select().from(authorityMappings).where(eq(authorityMappings.id, id)).limit(1);
-      if (existing) {
-        hodId = existing.hodId;
-        deanId = existing.deanId;
-      }
+    if (!id) {
+      return { error: "HOD can only update tutor and placement coordinator assignments on existing mappings." };
+    }
+
+    const [existing] = await db.select().from(authorityMappings).where(eq(authorityMappings.id, id)).limit(1);
+    if (!existing) {
+      return { error: "Mapping not found." };
+    }
+
+    const hodScopes = await getAuthorityMappingsForRole(session.user.id, session.user.role);
+    const canEditThisMapping = hodScopes.some(
+      (scope) =>
+        scope.department === existing.department &&
+        (!scope.school || scope.school === existing.school)
+    );
+
+    if (!canEditThisMapping) {
+      return { error: "You can only manage mappings inside your assigned school and department scope." };
+    }
+
+    try {
+      await db
+        .update(authorityMappings)
+        .set({
+          tutorId,
+          placementCoordinatorId: coordinatorId,
+          updatedBy: session.user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(authorityMappings.id, id));
+
+      revalidatePath("/settings/hierarchy");
+      revalidatePath("/users");
+      revalidatePath("/dashboard/staff");
+      return { success: true };
+    } catch (error: unknown) {
+      console.error("Hierarchy mapping update error:", error);
+      return { error: `Failed: ${error instanceof Error ? error.message : String(error)}` };
     }
   }
 
@@ -115,7 +144,7 @@ export async function upsertMapping(formData: FormData) {
 export async function deleteMapping(mappingId: string) {
   const session = await auth();
   if (!session?.user?.id) return { error: "Not authenticated" };
-  if (!["placement_officer", "principal", "dean"].includes(session.user.role)) {
+  if (session.user.role !== "dean") {
     return { error: "Unauthorized" };
   }
 
@@ -213,76 +242,8 @@ export async function saveCollegeHierarchy(newHierarchy: any) {
 }
 
 export async function selfProvisionScope(formData: FormData) {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Not authenticated" };
-  const role = session.user.role;
-  const userId = session.user.id;
-
-  const validRoles = ["tutor", "placement_coordinator", "hod", "dean"];
-  if (!validRoles.includes(role)) {
-    return { error: "Only staff can self-provision scope." };
-  }
-
-  const school = formData.get("school") as string;
-  const department = formData.get("department") as string;
-  const course = formData.get("course") as string;
-  const year = formData.get("year") ? parseInt(formData.get("year") as string, 10) : NaN;
-  const section = formData.get("section") as string;
-  const programType = formData.get("programType") as string || "UG";
-
-  if (!school) {
-    return { error: "School is required." };
-  }
-
-  if (role === "dean") {
-    try {
-      await db.insert(authorityMappings).values({
-        school,
-        department: department || "General",
-        section: DEAN_SCOPE_SECTION,
-        year: DEAN_SCOPE_YEAR,
-        deanId: userId,
-        updatedBy: userId,
-        updatedAt: new Date(),
-      });
-      revalidatePath("/");
-      return { success: true };
-    } catch (error: any) {
-      return { error: error?.message || "Failed to provision dean scope." };
-    }
-  }
-
-  if (!department || !course || !section) {
-    return { error: "Missing required scope fields." };
-  }
-
-  if (role === "tutor" && (!Number.isInteger(year) || year < 1)) {
-    return { error: "Tutor scope requires a valid year." };
-  }
-
-  try {
-    const updateData: any = {
-      school,
-      department,
-      course,
-      year: Number.isInteger(year) ? year : DEAN_SCOPE_YEAR,
-      section,
-      programType,
-      updatedBy: userId,
-      updatedAt: new Date(),
-    };
-
-    if (role === "tutor") updateData.tutorId = userId;
-    else if (role === "placement_coordinator") updateData.placementCoordinatorId = userId;
-    else if (role === "hod") updateData.hodId = userId;
-    else if (role === "dean") updateData.deanId = userId;
-
-    await db.insert(authorityMappings).values(updateData);
-    revalidatePath("/");
-    return { success: true };
-  } catch (error: any) {
-    return { error: error?.message || "Failed to provision scope." };
-  }
+  void formData;
+  return { error: "Hierarchy scope can only be assigned by HOD or dean. Self-assignment is disabled." };
 }
 
 export async function updateManagedUserScope(formData: FormData) {
@@ -354,20 +315,27 @@ export async function updateManagedUserScope(formData: FormData) {
         await db.insert(authorityMappings).values(deanValues);
       }
     } else {
-      if (!department || !section || !course || !programType) {
-        return { error: "School, section, course, program, and department are required." };
+      const isTutorTarget = targetUser.role === "tutor";
+      const isDepartmentWideTarget = targetUser.role === "placement_coordinator" || targetUser.role === "hod";
+
+      if (!department) {
+        return { error: "Department is required." };
       }
 
-      const parsedYear = yearRaw ? Number(yearRaw) : targetUser.role === "tutor" ? NaN : DEAN_SCOPE_YEAR;
-      if (targetUser.role === "tutor" && (!Number.isInteger(parsedYear) || parsedYear < 1)) {
+      if (isTutorTarget && (!section || !course || !programType)) {
+        return { error: "Tutor scope requires section, course, program, and department." };
+      }
+
+      const parsedYear = yearRaw ? Number(yearRaw) : isTutorTarget ? NaN : DEAN_SCOPE_YEAR;
+      if (isTutorTarget && (!Number.isInteger(parsedYear) || parsedYear < 1)) {
         return { error: "Tutor scope requires a valid year." };
       }
 
       const mappingValues: Record<string, unknown> = {
         school,
-        section,
-        course,
-        programType,
+        section: isDepartmentWideTarget ? DEAN_SCOPE_SECTION : section,
+        course: isDepartmentWideTarget ? null : course,
+        programType: isDepartmentWideTarget ? null : programType,
         department,
         year: Number.isInteger(parsedYear) ? parsedYear : DEAN_SCOPE_YEAR,
         batchStartYear: batchStartYearRaw ? Number(batchStartYearRaw) : null,

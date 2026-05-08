@@ -3,6 +3,7 @@ import { users, studentProfiles } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { buildStudentVisibilityCondition, getAuthorityMappingsForRole } from "@/lib/authority-scope";
+import { redirect } from "next/navigation";
 import StudentsClient from "./StudentsClient";
 
 export default async function StudentsPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
@@ -19,6 +20,12 @@ export default async function StudentsPage(props: { searchParams: Promise<{ [key
   const session = await auth();
   const userRole = session?.user?.role;
   const userId = session?.user?.id;
+
+  if (userRole === "tutor") {
+    redirect("/users?role=student");
+  }
+
+  const hideSchoolDepartmentFilters = ["placement_coordinator", "hod"].includes(userRole || "");
   const scopeMappings = userId && userRole
     ? await getAuthorityMappingsForRole(userId, userRole)
     : [];
@@ -31,8 +38,8 @@ export default async function StudentsPage(props: { searchParams: Promise<{ [key
   if (hierarchyConditions) baseConditions.push(hierarchyConditions!);
   
   // Apply explicit filters if provided (mostly for full-access roles)
-  if (schoolFilter) baseConditions.push(eq(studentProfiles.school, schoolFilter));
-  if (departmentFilter) baseConditions.push(eq(studentProfiles.department, departmentFilter));
+  if (schoolFilter && !hideSchoolDepartmentFilters) baseConditions.push(eq(studentProfiles.school, schoolFilter));
+  if (departmentFilter && !hideSchoolDepartmentFilters) baseConditions.push(eq(studentProfiles.department, departmentFilter));
   if (courseFilter) baseConditions.push(eq(studentProfiles.course, courseFilter));
   if (yearFilter && Number.isInteger(Number(yearFilter))) {
     baseConditions.push(eq(studentProfiles.year, Number(yearFilter)));
@@ -125,13 +132,14 @@ export default async function StudentsPage(props: { searchParams: Promise<{ [key
         initialStudents={students as any} 
         queryParam={queryParam}
         activeFilters={{
-          school: schoolFilter || "",
-          department: departmentFilter || "",
+          school: hideSchoolDepartmentFilters ? "" : schoolFilter || "",
+          department: hideSchoolDepartmentFilters ? "" : departmentFilter || "",
           course: courseFilter || "",
           year: yearFilter || "",
           section: sectionFilter || "",
         }}
         filtersRequired={filtersRequired}
+        role={userRole || ""}
       />
     </div>
   );

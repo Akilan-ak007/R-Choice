@@ -51,7 +51,6 @@ export function getNavSections(role: string): NavSection[] {
           { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} /> },
         ]},
         { label: "Students", items: [
-          { label: "All Students", href: "/students", icon: <GraduationCap size={20} /> },
           { label: "Applied Students", href: "/students/applied", icon: <Users size={20} /> },
           { label: "Shortlisted", href: "/students/shortlisted", icon: <Trophy size={20} /> },
           { label: "Manage Students", href: "/users?role=student", icon: <Users size={20} /> },
@@ -71,7 +70,7 @@ export function getNavSections(role: string): NavSection[] {
           { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} /> },
         ]},
         { label: "Students", items: [
-          { label: "All Students", href: "/students", icon: <GraduationCap size={20} /> },
+          { label: "Student Directory", href: "/students", icon: <GraduationCap size={20} /> },
           { label: "Applied Students", href: "/students/applied", icon: <Users size={20} /> },
           { label: "Shortlisted", href: "/students/shortlisted", icon: <Trophy size={20} /> },
           { label: "Manage Students", href: "/users?role=student", icon: <Users size={20} /> },
@@ -92,7 +91,7 @@ export function getNavSections(role: string): NavSection[] {
           { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} /> },
         ]},
         { label: "Department", items: [
-          { label: "All Students", href: "/students", icon: <GraduationCap size={20} /> },
+          { label: "Student Directory", href: "/students", icon: <GraduationCap size={20} /> },
           { label: "Applied Students", href: "/students/applied", icon: <Users size={20} /> },
           { label: "Shortlisted", href: "/students/shortlisted", icon: <Trophy size={20} /> },
           { label: "Manage Students", href: "/users", icon: <Users size={20} /> },
@@ -246,6 +245,13 @@ export function getMobileNavItems(role: string): NavItem[] {
         { label: "More", href: "/settings", icon: <Settings size={22} /> },
       ];
     case "tutor":
+      return [
+        { label: "Home", href: "/dashboard/staff", icon: <LayoutDashboard size={22} /> },
+        { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={22} /> },
+        { label: "Manage", href: "/users?role=student", icon: <Users size={22} /> },
+        { label: "Jobs", href: "/jobs", icon: <Briefcase size={22} /> },
+        { label: "More", href: "/settings", icon: <Settings size={22} /> },
+      ];
     case "placement_coordinator":
     case "hod":
       return [

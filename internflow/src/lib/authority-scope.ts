@@ -73,8 +73,6 @@ export function buildStudentVisibilityConditionFromMappings(
     } else if (role === "hod" || role === "placement_coordinator") {
       conditions.push(eq(studentProfiles.department, mapping.department));
       if (mapping.school) conditions.push(eq(studentProfiles.school, mapping.school));
-      if (mapping.course) conditions.push(eq(studentProfiles.course, mapping.course));
-      if (mapping.programType) conditions.push(eq(studentProfiles.programType, mapping.programType));
       if (mapping.batchStartYear) conditions.push(eq(studentProfiles.batchStartYear, mapping.batchStartYear));
       if (mapping.batchEndYear) conditions.push(eq(studentProfiles.batchEndYear, mapping.batchEndYear));
     } else {

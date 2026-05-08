@@ -6,9 +6,6 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, internshipRequests } from "@/lib/db/schema";
 import { getAuthorityMappingsForRole } from "@/lib/authority-scope";
-import { getCollegeHierarchy } from "@/app/actions/hierarchy";
-
-import { ScopeProvisionClient } from "./ScopeProvisionClient";
 
 type InternshipStatus = typeof internshipRequests.$inferSelect.status;
 
@@ -54,9 +51,6 @@ export default async function StaffDashboard() {
         .limit(5)
     : [];
 
-  const collegeHierarchy = await getCollegeHierarchy();
-  const hasScope = mappings.length > 0;
-
   return (
     <div className="dashboard-shell animate-fade-in">
       <section className="hero-panel">
@@ -77,7 +71,12 @@ export default async function StaffDashboard() {
         </div>
       </section>
 
-      <ScopeProvisionClient collegeHierarchy={collegeHierarchy} hasScope={hasScope} role={role || ""} />
+      <section className="card-glass" style={{ padding: "var(--space-5)", borderRadius: "var(--border-radius-xl)" }}>
+        <h2 style={{ marginTop: 0, marginBottom: "var(--space-3)" }}>Hierarchy Access</h2>
+        <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+          Tutors, placement coordinators, and HODs cannot self-assign hierarchy scope. Scope assignment is handled through hierarchy management by HOD or dean based on role.
+        </p>
+      </section>
 
       {mappings.length > 0 && (
         <section className="card-glass" style={{ padding: "var(--space-5)", borderRadius: "var(--border-radius-xl)" }}>
@@ -133,7 +132,7 @@ export default async function StaffDashboard() {
         </div>
       )}
 
-      <div className="dashboard-split">
+      <div className="grid grid-2">
         <div className="dashboard-shell">
           <div className="grid grid-3" style={{ marginBottom: 0 }}>
             {[
@@ -195,7 +194,9 @@ export default async function StaffDashboard() {
           <div className="card">
             <h2 style={{ marginTop: 0, marginBottom: "var(--space-3)" }}>Jump To</h2>
             <div style={{ display: "grid", gap: "var(--space-2)" }}>
-              <Link href="/students" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>Student Directory</Link>
+              {role !== "tutor" ? (
+                <Link href="/students" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>Student Directory</Link>
+              ) : null}
               <Link href="/users" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>User Management</Link>
               <Link href="/settings/hierarchy-audit" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>Hierarchy Audit</Link>
             </div>

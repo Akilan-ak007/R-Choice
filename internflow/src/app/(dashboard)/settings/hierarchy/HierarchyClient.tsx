@@ -85,6 +85,9 @@ export default function HierarchyClient({
   const [coordinatorId, setCoordinatorId] = useState("");
   const [hodId, setHodId] = useState("");
   const [deanId, setDeanId] = useState("");
+  const canCreateOrDeleteMappings = currentUserRole === "dean";
+  const canEditScopePath = currentUserRole === "dean";
+  const canEditHodDeanAssignments = currentUserRole === "dean";
 
   const resetForm = () => {
     setSchool("");
@@ -277,9 +280,11 @@ export default function HierarchyClient({
               Use school and section first to keep the mapping table compact and easier to audit.
             </p>
           </div>
-          <button className="btn btn-primary" onClick={() => { resetForm(); setShowForm(true); }}>
-            <Plus size={18} /> New Mapping
-          </button>
+          {canCreateOrDeleteMappings ? (
+            <button className="btn btn-primary" onClick={() => { resetForm(); setShowForm(true); }}>
+              <Plus size={18} /> New Mapping
+            </button>
+          ) : null}
         </div>
         <div className="filter-grid">
           <label style={{ display: "grid", gap: "6px" }}>
@@ -362,9 +367,11 @@ export default function HierarchyClient({
                             </div>
                             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                               <button onClick={() => openEdit(mapping)} className="btn btn-outline">Edit</button>
-                              <button onClick={() => handleDelete(mapping.id)} className="btn btn-secondary" style={{ color: "#dc2626" }}>
-                                <Trash2 size={14} /> Remove
-                              </button>
+                              {canCreateOrDeleteMappings ? (
+                                <button onClick={() => handleDelete(mapping.id)} className="btn btn-secondary" style={{ color: "#dc2626" }}>
+                                  <Trash2 size={14} /> Remove
+                                </button>
+                              ) : null}
                             </div>
                           </div>
                           {missingAssignments && (
@@ -540,37 +547,37 @@ export default function HierarchyClient({
 
               <div className="filter-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
                 <Field label="School">
-                  <select value={school} onChange={(e) => { setSchool(e.target.value); setSection(""); setCourse(""); setProgramType(""); setDept(""); }} className="input-field">
+                  <select value={school} onChange={(e) => { setSchool(e.target.value); setSection(""); setCourse(""); setProgramType(""); setDept(""); }} className="input-field" disabled={!canEditScopePath}>
                     <option value="">Select School...</option>
                     {collegeHierarchy.map((node) => <option key={node.school} value={node.school}>{node.school}</option>)}
                   </select>
                 </Field>
                 <Field label="Section">
-                  <select value={section} onChange={(e) => { setSection(e.target.value); setCourse(""); setProgramType(""); setDept(""); }} className="input-field" disabled={!school}>
+                  <select value={section} onChange={(e) => { setSection(e.target.value); setCourse(""); setProgramType(""); setDept(""); }} className="input-field" disabled={!school || !canEditScopePath}>
                     <option value="">Select Section...</option>
                     {schoolNode?.sections.map((node) => <option key={node.section} value={node.section}>{node.section}</option>)}
                   </select>
                 </Field>
                 <Field label="Course">
-                  <select value={course} onChange={(e) => { setCourse(e.target.value); setProgramType(""); setDept(""); }} className="input-field" disabled={!section}>
+                  <select value={course} onChange={(e) => { setCourse(e.target.value); setProgramType(""); setDept(""); }} className="input-field" disabled={!section || !canEditScopePath}>
                     <option value="">Select Course...</option>
                     {Array.from(new Set(courseNodes.map((node) => node.course))).map((value) => <option key={value} value={value}>{value}</option>)}
                   </select>
                 </Field>
                 <Field label="Program Type">
-                  <select value={programType} onChange={(e) => { setProgramType(e.target.value); setDept(""); setYear(1); }} className="input-field" disabled={!course}>
+                  <select value={programType} onChange={(e) => { setProgramType(e.target.value); setDept(""); setYear(1); }} className="input-field" disabled={!course || !canEditScopePath}>
                     <option value="">Select Program...</option>
                     {Array.from(new Set(courseNodes.filter((node) => node.course === course).map((node) => node.programType))).map((value) => <option key={value} value={value}>{value}</option>)}
                   </select>
                 </Field>
                 <Field label="Department">
-                  <select value={dept} onChange={(e) => setDept(e.target.value)} className="input-field" disabled={!programType}>
+                  <select value={dept} onChange={(e) => setDept(e.target.value)} className="input-field" disabled={!programType || !canEditScopePath}>
                     <option value="">Select Department...</option>
                     {selectedCourseNode?.departments.map((node) => <option key={node.name} value={node.name}>{node.name}</option>)}
                   </select>
                 </Field>
                 <Field label="Year">
-                  <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="input-field">
+                  <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="input-field" disabled={!canEditScopePath}>
                     {(programType === "PG" ? [1, 2] : programType === "UG" ? [1, 2, 3] : YEARS).map((value) => <option key={value} value={value}>Year {value}</option>)}
                   </select>
                 </Field>
@@ -579,8 +586,8 @@ export default function HierarchyClient({
               <div className="scope-grid">
                 <StaffSelect label="Tutor" value={tutorId} onChange={setTutorId} options={tutors} />
                 <StaffSelect label="Placement Coordinator" value={coordinatorId} onChange={setCoordinatorId} options={coordinators} />
-                <StaffSelect label="Head of Department" value={hodId} onChange={setHodId} options={hods} disabled={currentUserRole === "hod"} />
-                <StaffSelect label="Dean" value={deanId} onChange={setDeanId} options={deans} disabled={currentUserRole === "hod"} />
+                <StaffSelect label="Head of Department" value={hodId} onChange={setHodId} options={hods} disabled={!canEditHodDeanAssignments} />
+                <StaffSelect label="Dean" value={deanId} onChange={setDeanId} options={deans} disabled={!canEditHodDeanAssignments} />
               </div>
 
               <div className="sticky-action-bar">
