@@ -91,7 +91,7 @@ export default async function AdminDashboard() {
       ? { href: "/approvals/escalations", title: "Escalation Board", description: "Track breaches and upward escalations.", badge: slaBreaches }
       : null,
     userRole === "placement_officer"
-      ? { href: "/approvals/results", title: "Raise OD Queue", description: "Start OD approvals for selected students.", badge: pendingRaiseQueue }
+      ? { href: "/approvals/results", title: "Selected Students Queue", description: "Monitor which selected students have started OD approvals.", badge: pendingRaiseQueue }
       : null,
   ].filter(Boolean) as QuickAction[];
 
@@ -225,29 +225,31 @@ export default async function AdminDashboard() {
             </Link>
           </div>
 
-          <div className="card" style={{ padding: "var(--space-5)", background: "linear-gradient(180deg, rgba(20,95,132,0.96), rgba(13,67,94,0.98))", color: "white" }}>
-            <div style={{ display: "inline-flex", width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: "14px", background: "rgba(255,255,255,0.12)", marginBottom: "var(--space-3)" }}>
-              <ShieldCheck size={20} />
+          {!["placement_officer", "management_corporation", "mcr"].includes(userRole) && (
+            <div className="card" style={{ padding: "var(--space-5)", background: "linear-gradient(180deg, rgba(20,95,132,0.96), rgba(13,67,94,0.98))", color: "white" }}>
+              <div style={{ display: "inline-flex", width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: "14px", background: "rgba(255,255,255,0.12)", marginBottom: "var(--space-3)" }}>
+                <ShieldCheck size={20} />
+              </div>
+              <h2 style={{ marginTop: 0, marginBottom: "var(--space-2)", color: "white" }}>Leadership Notes</h2>
+              <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.82)", marginBottom: "var(--space-3)" }}>
+                Keep hierarchy mappings aligned before reviewing approvals so HOD, PC, tutor, and student visibility stays in sync.
+              </p>
+              <div style={{ display: "grid", gap: "var(--space-2)" }}>
+                <Link href="/settings/hierarchy" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center", borderColor: "rgba(255,255,255,0.22)", color: "white" }}>
+                  Open Hierarchy Settings
+                </Link>
+                <Link href="/settings/hierarchy-audit" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center", borderColor: "rgba(255,255,255,0.22)", color: "white" }}>
+                  Open Hierarchy Audit
+                </Link>
+                <Link href="/students" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center", borderColor: "rgba(255,255,255,0.22)", color: "white" }}>
+                  Open Student Directory
+                </Link>
+                <Link href="/users" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center", borderColor: "rgba(255,255,255,0.22)", color: "white" }}>
+                  Open User Management
+                </Link>
+              </div>
             </div>
-            <h2 style={{ marginTop: 0, marginBottom: "var(--space-2)", color: "white" }}>Leadership Notes</h2>
-            <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.82)", marginBottom: "var(--space-3)" }}>
-              Keep hierarchy mappings aligned before reviewing approvals so HOD, PC, tutor, and student visibility stays in sync.
-            </p>
-            <div style={{ display: "grid", gap: "var(--space-2)" }}>
-              <Link href="/settings/hierarchy" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center", borderColor: "rgba(255,255,255,0.22)", color: "white" }}>
-                Open Hierarchy Settings
-              </Link>
-              <Link href="/settings/hierarchy-audit" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center", borderColor: "rgba(255,255,255,0.22)", color: "white" }}>
-                Open Hierarchy Audit
-              </Link>
-              <Link href="/students" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center", borderColor: "rgba(255,255,255,0.22)", color: "white" }}>
-                Open Student Directory
-              </Link>
-              <Link href="/users" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center", borderColor: "rgba(255,255,255,0.22)", color: "white" }}>
-                Open User Management
-              </Link>
-            </div>
-          </div>
+          )}
 
           <div className="card" style={{ padding: "var(--space-5)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "var(--space-3)" }}>
@@ -256,7 +258,7 @@ export default async function AdminDashboard() {
             </div>
             <div style={{ display: "grid", gap: "10px" }}>
               <PerformanceRow label="Pending company reviews" value={String(pendingCompanies)} />
-              <PerformanceRow label="Raise OD queue" value={String(pendingRaiseQueue)} />
+              <PerformanceRow label="Selected students queue" value={String(pendingRaiseQueue)} />
               <PerformanceRow label="Manual handoffs" value={String(pendingManualHandoffs)} accent="#b45309" />
             </div>
           </div>

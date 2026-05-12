@@ -89,15 +89,15 @@ export default async function ShortlistedPage() {
               </div>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginLeft: "auto" }}>
                 <Link href={`/students/${s.studentId}`} className="btn btn-outline" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  <UserRound size={14} /> View Details
+                  <UserRound size={14} /> View Student
                 </Link>
                 {s.companyId && (
                   <Link href={`/companies/${s.companyId}`} className="btn btn-outline" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                    <Building2 size={14} /> View Details
+                    <Building2 size={14} /> View Company
                   </Link>
                 )}
                 <Link href={`/jobs/${s.jobId}`} className="btn btn-outline" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  <ExternalLink size={14} /> View Details
+                  <ExternalLink size={14} /> View Internship
                 </Link>
               </div>
             </div>

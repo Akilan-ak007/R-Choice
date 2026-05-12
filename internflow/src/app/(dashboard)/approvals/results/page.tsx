@@ -40,6 +40,8 @@ export default async function ApprovalResultsPage() {
       notes: jobResultPublications.notes,
       odStatus: odRaiseRequests.status,
       internshipRequestId: odRaiseRequests.internshipRequestId,
+      odStartDate: odRaiseRequests.startDate,
+      odEndDate: odRaiseRequests.endDate,
     })
     .from(jobResultPublications)
     .innerJoin(users, eq(jobResultPublications.studentId, users.id))
@@ -63,6 +65,8 @@ export default async function ApprovalResultsPage() {
     notes: row.notes,
     odStatus: row.odStatus,
     internshipRequestId: row.internshipRequestId,
+    odStartDate: row.odStartDate,
+    odEndDate: row.odEndDate,
   }));
 
   const applicationIds = queueRows.map((row) => row.applicationId);
@@ -112,24 +116,24 @@ export default async function ApprovalResultsPage() {
     return acc;
   }, {});
 
-  const pendingCount = queueRows.filter((row) => row.odStatus !== "od_raised" && !row.internshipRequestId).length;
+  const pendingCount = queueRows.filter((row) => row.odStatus === "awaiting_po_raise").length;
 
   return (
     <div className="animate-fade-in">
       <div className="page-header">
-        <h1>Selection Results Review</h1>
-        <p>Review company-selected students and explicitly raise On-Duty requests to begin the approval chain.</p>
+        <h1>Selected Students Queue</h1>
+        <p>Students submit the OD documents first, then Placement Officer manually clicks Raise OD to start the approval chain.</p>
       </div>
 
       <div className="card" style={{ marginBottom: "var(--space-4)", padding: "var(--space-4)", display: "flex", justifyContent: "space-between", gap: "var(--space-3)", flexWrap: "wrap" }}>
         <div>
           <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Pending PO action
+            Ready for PO raise
           </div>
           <div style={{ fontSize: "2rem", fontWeight: 700, color: "var(--primary-color)" }}>{pendingCount}</div>
         </div>
         <div style={{ maxWidth: "520px", color: "var(--text-secondary)", fontSize: "0.9375rem" }}>
-          Company results are visible here first. OD requests do not start automatically. The Placement Officer must choose dates and click <strong>Raise OD</strong> for each selected student.
+          This queue shows only the selected students whose documents are already submitted and waiting for Placement Officer manual Raise OD action.
         </div>
       </div>
 

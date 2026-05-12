@@ -279,11 +279,17 @@ export async function getRequestDetails(requestId: string) {
         id: internshipRequests.id,
         role: internshipRequests.role,
         companyName: internshipRequests.companyName,
+        companyAddress: internshipRequests.companyAddress,
         applicationType: internshipRequests.applicationType,
         status: internshipRequests.status,
         submittedAt: internshipRequests.submittedAt,
         studentId: internshipRequests.studentId,
         jobPostingId: internshipRequests.jobPostingId,
+        startDate: internshipRequests.startDate,
+        endDate: internshipRequests.endDate,
+        stipend: internshipRequests.stipend,
+        workMode: internshipRequests.workMode,
+        offerLetterUrl: internshipRequests.offerLetterUrl,
       })
       .from(internshipRequests)
       .where(eq(internshipRequests.id, requestId))
@@ -311,8 +317,21 @@ export async function getRequestDetails(requestId: string) {
     }
 
     // Fetch the basic student snapshot
-    const [user] = await db.select({ firstName: users.firstName, lastName: users.lastName, email: users.email, avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, request.studentId as string)).limit(1);
-    const [profile] = await db.select({ department: studentProfiles.department, year: studentProfiles.year, section: studentProfiles.section, cgpa: studentProfiles.cgpa }).from(studentProfiles).where(eq(studentProfiles.userId, request.studentId as string)).limit(1);
+    const [user] = await db.select({ firstName: users.firstName, lastName: users.lastName, email: users.email, phone: users.phone, avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, request.studentId as string)).limit(1);
+    const [profile] = await db.select({
+      department: studentProfiles.department,
+      year: studentProfiles.year,
+      section: studentProfiles.section,
+      cgpa: studentProfiles.cgpa,
+      school: studentProfiles.school,
+      course: studentProfiles.course,
+      program: studentProfiles.program,
+      programType: studentProfiles.programType,
+      registerNo: studentProfiles.registerNo,
+      resumeUrl: studentProfiles.resumeUrl,
+      batchStartYear: studentProfiles.batchStartYear,
+      batchEndYear: studentProfiles.batchEndYear,
+    }).from(studentProfiles).where(eq(studentProfiles.userId, request.studentId as string)).limit(1);
 
     return {
       success: true,

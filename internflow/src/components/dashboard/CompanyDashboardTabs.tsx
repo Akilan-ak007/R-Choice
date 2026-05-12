@@ -218,7 +218,7 @@ export default function CompanyDashboardTabs({
                         Manage Applicants
                       </Link>
                       <Link href={`/jobs/${job.id}`} className="btn btn-outline" style={{ textDecoration: "none", padding: "6px 10px", fontSize: "0.8rem" }}>
-                        View Details
+                        View Internship
                       </Link>
                     </div>
                   </div>

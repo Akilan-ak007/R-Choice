@@ -96,7 +96,7 @@ export default async function CompanyReviewPage() {
                 </div>
                 <div style={{ marginBottom: "var(--space-4)" }}>
                   <Link href={`/companies/${reg.id}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                    View Details
+                    View Full Details
                   </Link>
                 </div>
 
@@ -159,7 +159,7 @@ export default async function CompanyReviewPage() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
                     <Link href={`/companies/${reg.id}`} className="btn btn-outline" style={{ textDecoration: "none", padding: "6px 10px", fontSize: "0.75rem" }}>
-                      View Details
+                      View Full Details
                     </Link>
                     <span className={`status-pill ${reg.status === "approved" ? "status-approved" : "status-rejected"}`}>{reg.status}</span>
                     {/* Reconsider button for reviewed items */}

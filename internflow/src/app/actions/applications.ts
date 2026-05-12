@@ -409,7 +409,7 @@ export async function postCompanyResults(jobId: string, selectedStudentIds: stri
           studentId,
           resultStatus: "selected",
           publishedByUserId: session.user.id,
-          notes: "Selected by company. Awaiting Placement Officer OD raise.",
+          notes: "Selected by company. Waiting for student OD document submission and PO Raise OD.",
         })
         .onConflictDoNothing();
 
@@ -423,7 +423,7 @@ export async function postCompanyResults(jobId: string, selectedStudentIds: stri
           userId: student.id,
           type: "selection",
           title: "Internship Selection Result",
-          message: `Congratulations! You have been selected by ${company?.name}. Your result is now visible to the Placement Officer for OD initiation.`,
+          message: `Congratulations! You have been selected by ${company?.name}. Submit your offer letter and parent consent links to send the OD request to Placement Officer.`,
           linkUrl: "/dashboard/student"
         });
         
@@ -444,7 +444,7 @@ export async function postCompanyResults(jobId: string, selectedStudentIds: stri
         try {
           const approvers = await getApproversForStudent(studentId);
           const notifyAlerts: Array<typeof notifications.$inferInsert> = [];
-          const pushMessage = `A student in your section (${emailTask.name}) was just shortlisted for ${job?.role || "an internship"} by ${company?.name}. Expect an OD request soon.`;
+          const pushMessage = `A student in your section (${emailTask.name}) was just shortlisted for ${job?.role || "an internship"} by ${company?.name}. A student-started OD request may follow soon.`;
           
           if (approvers.tutorId) notifyAlerts.push({ userId: approvers.tutorId, type: "application_update", title: "Student Shortlisted", message: pushMessage, linkUrl: "/approvals" });
           if (approvers.placementCoordinatorId) notifyAlerts.push({ userId: approvers.placementCoordinatorId, type: "application_update", title: "Student Shortlisted", message: pushMessage, linkUrl: "/approvals" });
@@ -831,35 +831,61 @@ export async function raiseODFromSelection(resultPublicationId: string, startDat
       return { error: "Job or company details are missing." };
     }
 
+    const validatedStartDate = validateDate(startDate, "Start Date");
+    const validatedEndDate = validateDate(endDate, "End Date");
     const slaHours = await getDefaultOdSlaHours();
+    const approvers = await getApproversForStudent(resultPublication.studentId);
 
-    const [createdRequest] = await db.insert(internshipRequests).values({
-      studentId: resultPublication.studentId,
-      jobPostingId: resultPublication.jobId,
-      applicationType: "portal",
-      companyName: company.companyLegalName,
-      companyAddress: company.address,
-      role: job.title,
-      startDate: validateDate(startDate, "Start Date"),
-      endDate: validateDate(endDate, "End Date"),
-      stipend: job.stipendSalary,
-      workMode: job.workMode,
-      status: "pending_tutor",
-      currentTier: 1,
-      currentTierEnteredAt: new Date(),
-      currentTierSlaHours: slaHours,
-      submittedAt: new Date(),
-    }).returning({ id: internshipRequests.id });
+    if (existingRaise && !existingRaise.internshipRequestId) {
+      return { error: "The student must submit OD documents before Placement Officer can raise OD." };
+    }
+
+    let internshipRequestId = existingRaise?.internshipRequestId || null;
+
+    if (internshipRequestId) {
+      await db
+        .update(internshipRequests)
+        .set({
+          startDate: validatedStartDate,
+          endDate: validatedEndDate,
+          status: "pending_tutor",
+          currentTier: 1,
+          currentTierEnteredAt: new Date(),
+          currentTierSlaHours: slaHours,
+          submittedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(internshipRequests.id, internshipRequestId));
+    } else {
+      const [createdRequest] = await db.insert(internshipRequests).values({
+        studentId: resultPublication.studentId,
+        jobPostingId: resultPublication.jobId,
+        applicationType: "portal",
+        companyName: company.companyLegalName,
+        companyAddress: company.address,
+        role: job.title,
+        startDate: validatedStartDate,
+        endDate: validatedEndDate,
+        stipend: job.stipendSalary,
+        workMode: job.workMode,
+        status: "pending_tutor",
+        currentTier: 1,
+        currentTierEnteredAt: new Date(),
+        currentTierSlaHours: slaHours,
+        submittedAt: new Date(),
+      }).returning({ id: internshipRequests.id });
+      internshipRequestId = createdRequest.id;
+    }
 
     if (existingRaise) {
       await db
         .update(odRaiseRequests)
         .set({
-          internshipRequestId: createdRequest.id,
+          internshipRequestId,
           status: "od_raised",
           raisedByUserId: session.user.id,
-          startDate: validateDate(startDate, "Start Date"),
-          endDate: validateDate(endDate, "End Date"),
+          startDate: validatedStartDate,
+          endDate: validatedEndDate,
           raisedAt: new Date(),
         })
         .where(eq(odRaiseRequests.id, existingRaise.id));
@@ -869,22 +895,51 @@ export async function raiseODFromSelection(resultPublicationId: string, startDat
         studentId: resultPublication.studentId,
         jobId: resultPublication.jobId,
         companyId: resultPublication.companyId,
-        internshipRequestId: createdRequest.id,
+        internshipRequestId,
         status: "od_raised",
         raisedByUserId: session.user.id,
-        startDate: validateDate(startDate, "Start Date"),
-        endDate: validateDate(endDate, "End Date"),
+        startDate: validatedStartDate,
+        endDate: validatedEndDate,
         raisedAt: new Date(),
       });
     }
 
-    await db.insert(notifications).values({
-      userId: resultPublication.studentId,
-      type: "od_raised",
-      title: "OD Approval Flow Started",
-      message: `${company.companyLegalName} selection has been converted into an OD approval request by the Placement Officer.`,
-      linkUrl: "/applications",
-    });
+    await db.insert(notifications).values([
+      {
+        userId: resultPublication.studentId,
+        type: "od_raised",
+        title: "OD Approval Flow Started",
+        message: `${company.companyLegalName} selection has been converted into an OD approval request by the Placement Officer.`,
+        linkUrl: "/applications",
+      },
+      ...(approvers.tutorId
+        ? [{
+            userId: approvers.tutorId,
+            type: "application_update",
+            title: "New Portal OD Request",
+            message: `A portal OD request for ${job.title} at ${company.companyLegalName} is ready for tutor review.`,
+            linkUrl: "/approvals",
+          }]
+        : []),
+      ...(approvers.placementCoordinatorId
+        ? [{
+            userId: approvers.placementCoordinatorId,
+            type: "application_update",
+            title: "New Portal OD Request",
+            message: `A portal OD request for ${job.title} at ${company.companyLegalName} has entered the approval chain.`,
+            linkUrl: "/approvals",
+          }]
+        : []),
+      ...(approvers.hodId
+        ? [{
+            userId: approvers.hodId,
+            type: "application_update",
+            title: "New Portal OD Request",
+            message: `A portal OD request for ${job.title} at ${company.companyLegalName} has entered the approval chain.`,
+            linkUrl: "/approvals",
+          }]
+        : []),
+    ]);
 
     await db.insert(calendarEvents).values({
       userId: resultPublication.studentId,
@@ -892,14 +947,14 @@ export async function raiseODFromSelection(resultPublicationId: string, startDat
       description: `Placement Officer started OD approval for ${job.title}`,
       eventType: "od_raised",
       startDate: new Date(validateDate(startDate, "Start Date")),
-      relatedEntityId: createdRequest.id,
+      relatedEntityId: internshipRequestId,
       relatedEntityType: "internship_request",
       isAllDay: true,
     });
 
     captureServerEvent("od_raised_from_company_selection", {
       resultPublicationId,
-      internshipRequestId: createdRequest.id,
+      internshipRequestId,
       studentId: resultPublication.studentId,
       companyId: resultPublication.companyId,
       jobId: resultPublication.jobId,
@@ -920,12 +975,196 @@ export async function raiseODFromSelection(resultPublicationId: string, startDat
   }
 }
 
+export async function submitPortalOdRequestFromSelection(payload: {
+  applicationId: string;
+  startDate: string;
+  endDate: string;
+  offerLetterUrl: string;
+  parentConsentUrl: string;
+}) {
+  const session = await auth();
+  if (!session?.user?.id || session.user.role !== "student") {
+    return { error: "Only students can start the OD request after selection." };
+  }
+
+  const studentId = session.user.id;
+
+  try {
+    const applicationId = sanitize(payload.applicationId, "Application", 100);
+    const startDate = validateDate(payload.startDate, "Start Date");
+    const endDate = validateDate(payload.endDate, "End Date");
+    const offerLetterUrl = validateUrl(payload.offerLetterUrl, "Offer Letter URL");
+    const parentConsentUrl = validateUrl(payload.parentConsentUrl, "Parent Consent URL");
+
+    const [application] = await db
+      .select({
+        id: jobApplications.id,
+        jobId: jobApplications.jobId,
+        studentId: jobApplications.studentId,
+        status: jobApplications.status,
+      })
+      .from(jobApplications)
+      .where(eq(jobApplications.id, applicationId))
+      .limit(1);
+
+    if (!application || application.studentId !== studentId) {
+      return { error: "Selection record not found for this student." };
+    }
+
+    if (application.status !== "selected") {
+      return { error: "Only selected students can start the OD approval request." };
+    }
+
+    const [resultPublication] = await db
+      .select()
+      .from(jobResultPublications)
+      .where(eq(jobResultPublications.applicationId, applicationId))
+      .limit(1);
+
+    if (!resultPublication || resultPublication.resultStatus !== "selected") {
+      return { error: "The company selection result is missing." };
+    }
+
+    const [existingRaise] = await db
+      .select()
+      .from(odRaiseRequests)
+      .where(eq(odRaiseRequests.resultPublicationId, resultPublication.id))
+      .limit(1);
+
+    if (existingRaise?.internshipRequestId) {
+      return { error: "You have already started the OD approval flow for this selection." };
+    }
+
+    const [job] = await db.select().from(jobPostings).where(eq(jobPostings.id, resultPublication.jobId)).limit(1);
+    const [company] = await db
+      .select()
+      .from(companyRegistrations)
+      .where(eq(companyRegistrations.id, resultPublication.companyId))
+      .limit(1);
+
+    if (!job || !company) {
+      return { error: "Job or company details are missing for this selection." };
+    }
+
+    const [createdRequest] = await db
+      .insert(internshipRequests)
+      .values({
+        studentId,
+        jobPostingId: resultPublication.jobId,
+        applicationType: "portal",
+        companyName: company.companyLegalName,
+        companyAddress: company.address,
+        role: job.title,
+        startDate,
+        endDate,
+        stipend: job.stipendSalary,
+        workMode: job.workMode,
+        offerLetterUrl,
+        status: "draft",
+        currentTier: 0,
+        currentTierEnteredAt: null,
+        submittedAt: new Date(),
+      })
+      .returning({ id: internshipRequests.id });
+
+    await db.insert(externalInternshipDetails).values({
+      requestId: createdRequest.id,
+      companyWebsite: company.website || "Not provided",
+      hrName: company.hrName || "HR Team",
+      hrEmail: company.hrEmail || "not-provided@example.com",
+      hrPhone: company.hrPhone || "0000000000",
+      companyIdProofUrl: company.registrationCertUrl || company.coi || company.website || "Not provided",
+      parentConsentUrl,
+      workMode: job.workMode || "onsite",
+      discoverySource: "Portal Selection",
+    });
+
+    const internshipRequestId = createdRequest.id;
+
+    if (existingRaise) {
+      await db
+        .update(odRaiseRequests)
+        .set({
+          internshipRequestId: createdRequest.id,
+          status: "awaiting_po_raise",
+          raisedByUserId: null,
+          startDate,
+          endDate,
+          raisedAt: null,
+        })
+        .where(eq(odRaiseRequests.id, existingRaise.id));
+    } else {
+      await db.insert(odRaiseRequests).values({
+        resultPublicationId: resultPublication.id,
+        studentId,
+        jobId: resultPublication.jobId,
+        companyId: resultPublication.companyId,
+        internshipRequestId,
+        status: "awaiting_po_raise",
+        raisedByUserId: null,
+        startDate,
+        endDate,
+        raisedAt: null,
+      });
+    }
+
+    const placementOfficers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.role, "placement_officer"));
+
+    const notifyRows = [
+      ...placementOfficers.map((po) => ({
+        userId: po.id,
+        type: "application_update",
+        title: "Student Submitted OD Documents",
+        message: `${session.user.name || "A student"} submitted portal OD documents for ${job.title} at ${company.companyLegalName}. Review and click Raise OD to start the approval chain.`,
+        linkUrl: "/approvals/results",
+      })),
+      {
+        userId: studentId,
+        type: "application_update",
+        title: "Documents Sent to Placement Officer",
+        message: `Your OD documents for ${company.companyLegalName} were submitted successfully. Wait for the Placement Officer to click Raise OD.`,
+        linkUrl: "/applications",
+      },
+    ] as typeof notifications.$inferInsert[];
+
+    await db.insert(notifications).values(notifyRows);
+
+    captureServerEvent("portal_od_request_started_by_student", {
+      applicationId,
+      internshipRequestId,
+      studentId,
+      resultPublicationId: resultPublication.id,
+    });
+
+    revalidatePath("/applications");
+    revalidatePath("/approvals");
+    revalidatePath("/approvals/results");
+    revalidatePath("/dashboard/student");
+    revalidatePath("/dashboard/admin");
+    revalidatePath("/jobs");
+    return { success: true };
+  } catch (err: unknown) {
+    if (err instanceof ValidationError) {
+      return { error: err.message };
+    }
+    captureServerError(err, {
+      scope: "submitPortalOdRequestFromSelection",
+      actorId: studentId,
+      applicationId: payload.applicationId,
+    });
+    return { error: err instanceof Error ? err.message : "Failed to start the OD request." };
+  }
+}
+
 export async function verifyAndInitializeOD(applicationId: string, code: string, startDate: string, endDate: string) {
   void applicationId;
   void code;
   void startDate;
   void endDate;
   return {
-    error: "OD requests are now raised by the Placement Officer after company results are reviewed.",
+    error: "Selected students now start the OD request directly by submitting their offer letter and parent consent links.",
   };
 }

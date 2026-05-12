@@ -228,10 +228,10 @@ export default async function StudentDashboard() {
                 <div style={{ marginTop: "12px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
                     <ShieldCheck size={14} color="#6366f1" />
-                    <span style={{ fontSize: "0.8rem", color: "#6366f1", fontWeight: 600 }}>Selected! Waiting for Placement Officer to raise OD</span>
+                    <span style={{ fontSize: "0.8rem", color: "#6366f1", fontWeight: 600 }}>Selected! Submit your documents, then wait for PO to raise OD</span>
                   </div>
                   <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                    Your company result is visible to the Placement Officer. Once OD is raised, it will appear in your applications tracker automatically.
+                    Open My Applications and submit the offer letter link plus parent consent link. After that, Placement Officer will manually click Raise OD and the tracker will begin.
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>

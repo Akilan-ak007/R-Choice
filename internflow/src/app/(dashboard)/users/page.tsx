@@ -55,6 +55,7 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
 
   const conditions: SQL[] = [];
   const manageableRoles = [...getManagedUserRoles(userRole)];
+  const hideCompanyAccounts = ["placement_officer", "management_corporation", "mcr"].includes(userRole);
   if (canManageUsers) {
     if (roleFilter) {
       if (manageableRoles.includes(roleFilter as never)) {
@@ -75,6 +76,9 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
       ilike(users.email, `%${queryParam}%`)
     );
     if (search) conditions.push(search);
+  }
+  if (hideCompanyAccounts) {
+    conditions.push(sql`${users.role} NOT IN ('company', 'company_staff')`);
   }
 
   const managedUsersCondition = canManageUsers && session?.user?.id
@@ -152,7 +156,7 @@ export default async function UsersPage(props: { searchParams: Promise<{ [key: s
                 {!canManageUsers && <option value="dean">Dean</option>}
                 {!canManageUsers && <option value="placement_officer">Placement Officer</option>}
                 {!canManageUsers && <option value="principal">Principal</option>}
-                {!canManageUsers && <option value="company">Company</option>}
+                {!canManageUsers && !hideCompanyAccounts && <option value="company">Company</option>}
               </select>
               <input 
                 type="search" 

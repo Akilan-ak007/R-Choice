@@ -32,7 +32,7 @@ export default function VerificationBannerClient({
         <div style={{ fontSize: "0.875rem", lineHeight: "1.4" }}>
           <strong style={{ color: "var(--text-primary)" }}>{companyName}</strong> selected you for <strong>{jobTitle}</strong>. 
           <span style={{ color: "var(--text-secondary)", marginLeft: "4px", display: "inline-block" }}>
-            Awaiting Placement Officer OD approval.
+            Submit your offer letter and parent consent link first. Then Placement Officer will raise OD.
           </span>
         </div>
       </div>

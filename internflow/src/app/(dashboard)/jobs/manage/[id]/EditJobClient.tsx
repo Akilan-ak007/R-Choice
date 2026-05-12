@@ -35,18 +35,7 @@ export default function EditJobClient({ job }: { job: EditJobData }) {
   const [rounds, setRounds] = useState<RoundDraft[]>(
     job.rounds.length > 0
       ? job.rounds
-      : [
-          {
-            roundName: "",
-            roundType: "custom",
-            startsAt: "",
-            endsAt: "",
-            mode: "Online",
-            meetLink: "",
-            location: "",
-            description: "",
-          },
-        ]
+      : []
   );
 
   function updateRound(index: number, field: keyof RoundDraft, value: string) {
@@ -149,6 +138,11 @@ export default function EditJobClient({ job }: { job: EditJobData }) {
           </h3>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {rounds.length === 0 ? (
+              <div style={{ padding: "14px", borderRadius: "10px", background: "var(--bg-secondary)", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+                Structured rounds are optional. Add them only when this internship needs round-wise tracking and shortlisting.
+              </div>
+            ) : null}
             {rounds.map((round, index) => (
               <div key={`edit-round-${index}`} style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)", borderRadius: "12px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

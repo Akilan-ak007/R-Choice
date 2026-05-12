@@ -302,7 +302,7 @@ export default function StudentsClient({
                             title="View student details"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <Eye size={16} /> View Details
+                            <Eye size={16} /> View Student
                           </Link>
                         </td>
                       </motion.tr>

@@ -35,8 +35,8 @@ export async function createJobPosting(formData: FormData) {
   }
   
   const allowedRoles = [
-    "company", "company_staff", "tutor", "placement_coordinator", "hod", "dean", 
-    "placement_officer", "principal", "coe", "placement_head", "management_corporation"
+    "company", "company_staff", "tutor", "placement_coordinator", "hod", "dean",
+    "placement_officer", "principal", "coe", "placement_head", "management_corporation", "mcr"
   ];
   const role = session.user.role;
   if (!allowedRoles.includes(role)) {
@@ -161,7 +161,7 @@ export async function createJobPosting(formData: FormData) {
       faq: faq,
       contactPersons: contactPersons,
       requiredSkills: mandatorySkills.length > 0 ? mandatorySkills : [],
-      status: role === "management_corporation" ? "approved" : "pending_mcr_approval",
+      status: ["placement_officer", "management_corporation", "mcr"].includes(role) ? "approved" : "pending_review",
     }).returning({ id: jobPostings.id });
 
     if (insertedJob && (structuredRounds.length > 0 || selectionSteps.length > 0)) {
@@ -224,7 +224,20 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
     let newStatus = job.status;
     let shouldNotify = false;
     
-    if (role === "management_corporation" && (job.status === "pending_mcr_approval" || job.status === "pending_review")) {
+    if (
+      role === "placement_officer" &&
+      job.status === "pending_review"
+    ) {
+      if (action === "approve") {
+        newStatus = "approved";
+        shouldNotify = true;
+      } else {
+        newStatus = "rejected";
+      }
+    } else if (
+      ["management_corporation", "mcr"].includes(role) &&
+      job.status === "pending_mcr_approval"
+    ) {
       if (action === "approve") {
         newStatus = "approved";
         shouldNotify = true;
@@ -267,7 +280,7 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
         await sendPushToMultiple(
           authorityTokenList,
           "New Internship Approved",
-          `A new internship '${job.title}' has been approved by MCR.`,
+          `A new internship '${job.title}' has been approved by ${role.replaceAll("_", " ")}.`,
           { type: "job_approved", jobId }
         );
       }

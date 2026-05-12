@@ -32,6 +32,12 @@ import { fetchFullStudentProfile } from "@/app/actions/profile";
 import { postCompanyResults, recordApplicantRoundOutcome, shortlistApplicant, toggleApplicantRoundScheduled } from "@/app/actions/applications";
 import { exportToCSV } from "@/lib/export-utils";
 
+function getInitials(firstName: string, lastName: string) {
+  const first = firstName.trim().charAt(0).toUpperCase() || "S";
+  const last = lastName.trim().charAt(0).toUpperCase() || "";
+  return `${first}${last}`.trim();
+}
+
 type ApplicantRow = {
   id: string;
   applicationId: string;
@@ -597,7 +603,9 @@ export default function ApplicantsClient({
                                 {applicant.avatarUrl ? (
                                   <Image src={applicant.avatarUrl} alt="Avatar" width={40} height={40} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                                 ) : (
-                                  <UserCircle size={24} color="var(--text-secondary)" />
+                                  <span style={{ fontSize: "0.9rem", fontWeight: 800, color: "var(--primary-color)" }}>
+                                    {getInitials(applicant.firstName, applicant.lastName)}
+                                  </span>
                                 )}
                               </div>
                               <div>
@@ -687,11 +695,16 @@ export default function ApplicantsClient({
                                 style={{ padding: "4px 8px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px" }}
                                 onClick={() => fetchProfile(applicant.id)}
                               >
-                                Profile <ChevronRight size={14} />
+                                View Profile <ChevronRight size={14} />
                               </button>
                               <Link href={`/students/${applicant.id}`} className="btn btn-outline" style={{ padding: "4px 8px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px", textDecoration: "none" }}>
-                                View Details <ChevronRight size={14} />
+                                Full Student Details <ChevronRight size={14} />
                               </Link>
+                              {applicant.resumeUrl ? (
+                                <a href={applicant.resumeUrl} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ padding: "4px 8px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px", textDecoration: "none" }}>
+                                  Resume <ExternalLink size={14} />
+                                </a>
+                              ) : null}
                             </div>
                           </td>
                         </tr>
@@ -744,7 +757,13 @@ export default function ApplicantsClient({
                 <div style={{ background: "linear-gradient(135deg, var(--bg-hover) 0%, transparent 100%)", padding: "24px 32px", borderBottom: "1px solid var(--border-color)" }}>
                   <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap" }}>
                     <div style={{ width: "70px", height: "70px", borderRadius: "50%", overflow: "hidden", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {profileData.user.avatarUrl ? <Image src={profileData.user.avatarUrl} alt="Avatar" width={70} height={70} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <UserCircle size={40} color="var(--text-secondary)" />}
+                      {profileData.user.avatarUrl ? (
+                        <Image src={profileData.user.avatarUrl} alt="Avatar" width={70} height={70} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <span style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--primary-color)" }}>
+                          {getInitials(profileData.user.firstName, profileData.user.lastName)}
+                        </span>
+                      )}
                     </div>
                     <div>
                       <h2 style={{ fontSize: "1.5rem", margin: 0, fontWeight: 700 }}>{profileData.user.firstName} {profileData.user.lastName}</h2>

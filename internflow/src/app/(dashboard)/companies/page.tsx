@@ -8,6 +8,21 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import DeleteCompanyButton from "./DeleteCompanyButton";
 
+function getCompanyBadgeSeed(value: string) {
+  return Array.from(value).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+}
+
+function getCompanyBadgeStyle(value: string) {
+  const palettes = [
+    { background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#ffffff" },
+    { background: "linear-gradient(135deg, #f97316, #ea580c)", color: "#ffffff" },
+    { background: "linear-gradient(135deg, #059669, #047857)", color: "#ffffff" },
+    { background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#ffffff" },
+    { background: "linear-gradient(135deg, #db2777, #be185d)", color: "#ffffff" },
+  ];
+  return palettes[getCompanyBadgeSeed(value) % palettes.length];
+}
+
 export default async function CompaniesPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
   const searchParams = await props.searchParams;
   const queryParam = searchParams.q || "";
@@ -143,18 +158,20 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
                 position: "relative",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                  <div style={{ 
-                    width: "48px", 
-                    height: "48px", 
-                    borderRadius: "12px", 
-                    backgroundColor: "var(--surface)", 
-                    border: "1px solid var(--border-color)",
+                  <div style={{
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.08)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    flexShrink: 0
+                    flexShrink: 0,
+                    fontWeight: 800,
+                    fontSize: "1rem",
+                    ...getCompanyBadgeStyle(company.companyLegalName || company.brandName || "C"),
                   }}>
-                    <Building size={24} color="var(--primary-color)" />
+                    {(company.brandName || company.companyLegalName || "C").trim().charAt(0).toUpperCase()}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: "1.125rem" }}>{company.companyLegalName}</div>
@@ -216,7 +233,7 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
                   cursor: "pointer",
                   transition: "opacity 0.2s ease",
                 }}>
-                  <Building size={14} /> View Details
+                  <Building size={14} /> View Full Details
                 </Link>
               </div>
                 );

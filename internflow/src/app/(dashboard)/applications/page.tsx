@@ -7,7 +7,9 @@ import {
   companyRegistrations,
   jobApplicationRoundProgress,
   jobApplications,
+  jobResultPublications,
   jobPostings,
+  odRaiseRequests,
   selectionProcessRounds,
 } from "@/lib/db/schema";
 import { eq, desc, inArray, asc } from "drizzle-orm";
@@ -15,6 +17,7 @@ import { format } from "date-fns";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PlusCircle, ExternalLink, Calendar, MapPin, Building2, FolderOpen, MessageSquare, CheckCircle2, Milestone, ShieldCheck, Clock } from "lucide-react";
+import PortalOdInitiationCard from "./PortalOdInitiationCard";
 
 type ApplicationLog = {
   requestId: string;
@@ -52,7 +55,7 @@ export default async function ApplicationsPage() {
   }
 
   const userId = session.user.id;
-  let selectedAwaitingOd: { appId: string; jobId: string; companyId: string | null; jobTitle: string; companyName: string | null }[] = [];
+  let selectedAwaitingOd: { appId: string; jobId: string; companyId: string | null; jobTitle: string; companyName: string | null; defaultStartDate: string; defaultEndDate: string; odStatus: string | null }[] = [];
   let selectionTimeline: SelectionTimelineItem[] = [];
   
   // Fetch their applications
@@ -89,10 +92,16 @@ export default async function ApplicationsPage() {
       jobTitle: jobPostings.title,
       companyId: companyRegistrations.id,
       companyName: companyRegistrations.companyLegalName,
+      startDate: jobPostings.startDate,
+      odStatus: odRaiseRequests.status,
+      odStartDate: odRaiseRequests.startDate,
+      odEndDate: odRaiseRequests.endDate,
     })
     .from(jobApplications)
     .innerJoin(jobPostings, eq(jobPostings.id, jobApplications.jobId))
     .leftJoin(companyRegistrations, eq(companyRegistrations.id, jobPostings.companyId))
+    .leftJoin(jobResultPublications, eq(jobResultPublications.applicationId, jobApplications.id))
+    .leftJoin(odRaiseRequests, eq(odRaiseRequests.resultPublicationId, jobResultPublications.id))
     .where(eq(jobApplications.studentId, userId));
 
   selectedAwaitingOd = myJobApps
@@ -103,6 +112,9 @@ export default async function ApplicationsPage() {
       companyId: app.companyId,
       jobTitle: app.jobTitle,
       companyName: app.companyName,
+      defaultStartDate: app.odStartDate ? new Date(app.odStartDate).toISOString().slice(0, 10) : app.startDate ? new Date(app.startDate).toISOString().slice(0, 10) : "",
+      defaultEndDate: app.odEndDate ? new Date(app.odEndDate).toISOString().slice(0, 10) : app.startDate ? new Date(app.startDate).toISOString().slice(0, 10) : "",
+      odStatus: app.odStatus,
     }));
 
   const roundProgressRows = await db
@@ -202,35 +214,7 @@ export default async function ApplicationsPage() {
 
       {(selectionTimeline.length > 0 || selectedAwaitingOd.length > 0) && (
         <div style={{ display: "grid", gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
-          {selectedAwaitingOd.length > 0 && (
-            <div className="card" style={{ padding: "var(--space-5)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                <ShieldCheck size={18} color="#6366f1" />
-                <h2 style={{ margin: 0, fontSize: "1.05rem" }}>Selected and waiting for Placement Officer</h2>
-              </div>
-              <div style={{ display: "grid", gap: "12px" }}>
-                {selectedAwaitingOd.map((app) => (
-                  <div key={app.appId} style={{ padding: "14px", borderRadius: "10px", background: "rgba(99, 102, 241, 0.08)", border: "1px solid rgba(99, 102, 241, 0.18)" }}>
-                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>{app.jobTitle}</div>
-                    <div style={{ color: "var(--text-secondary)", marginBottom: "8px" }}>{app.companyName || "Company"}</div>
-                    <div style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>
-                      Final company results are published. Once Placement Officer raises OD, this internship will appear in the approval tracker below.
-                    </div>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
-                      <Link href={`/jobs/${app.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                        View Details
-                      </Link>
-                      {app.companyId && (
-                        <Link href={`/companies/${app.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                          View Details
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {selectedAwaitingOd.length > 0 && <PortalOdInitiationCard selections={selectedAwaitingOd} />}
 
           {selectionTimeline.length > 0 && (
             <div className="card" style={{ padding: "var(--space-5)" }}>
@@ -301,11 +285,11 @@ export default async function ApplicationsPage() {
                     </div>
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
                       <Link href={`/jobs/${item.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                        View Details
+                        View Internship
                       </Link>
                       {item.companyId && (
                         <Link href={`/companies/${item.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                          View Details
+                          View Company
                         </Link>
                       )}
                     </div>

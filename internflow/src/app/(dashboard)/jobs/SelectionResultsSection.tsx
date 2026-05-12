@@ -30,7 +30,7 @@ function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: stri
   if (isVerified) {
     return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(16, 185, 129, 0.12)", color: "#10b981" }}><ShieldCheck size={11} /> Verified</span>;
   }
-  return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}><Clock size={11} /> Awaiting PO Action</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}><Clock size={11} /> Waiting for Student OD Submission</span>;
 }
 
 export default function SelectionResultsSection({ results, odStatusMap = {}, viewerRole }: { results: SelectionResult[]; odStatusMap?: Record<string, string>; viewerRole?: string }) {
@@ -60,7 +60,7 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
           <Trophy size={22} color="#f59e0b" /> Selection Results
         </h2>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-          {/* Raise OD CTA — visible only to Placement Officer */}
+          {/* Selected students monitoring CTA for Placement Officer */}
           {isPO && studentsNeedingOD.length > 0 && (
             <Link
               href="/approvals/results"
@@ -83,7 +83,7 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
               }}
             >
               <SendHorizonal size={14} />
-              {`Review Raise OD Queue (${studentsNeedingOD.length})`}
+              {`Review Selected Queue (${studentsNeedingOD.length})`}
             </Link>
           )}
           {(["recent", "all"] as const).map(f => (

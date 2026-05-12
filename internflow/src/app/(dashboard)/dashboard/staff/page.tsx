@@ -191,16 +191,18 @@ export default async function StaffDashboard() {
             </div>
           </div>
 
-          <div className="card">
-            <h2 style={{ marginTop: 0, marginBottom: "var(--space-3)" }}>Jump To</h2>
-            <div style={{ display: "grid", gap: "var(--space-2)" }}>
-              {role !== "tutor" ? (
-                <Link href="/students" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>Student Directory</Link>
-              ) : null}
-              <Link href="/users" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>User Management</Link>
-              <Link href="/settings/hierarchy-audit" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>Hierarchy Audit</Link>
+          {!["tutor", "placement_coordinator"].includes(role || "") && (
+            <div className="card">
+              <h2 style={{ marginTop: 0, marginBottom: "var(--space-3)" }}>Jump To</h2>
+              <div style={{ display: "grid", gap: "var(--space-2)" }}>
+                {role !== "tutor" ? (
+                  <Link href="/students" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>Student Directory</Link>
+                ) : null}
+                <Link href="/users" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>User Management</Link>
+                <Link href="/settings/hierarchy-audit" className="btn btn-outline" style={{ textDecoration: "none", justifyContent: "center" }}>Hierarchy Audit</Link>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

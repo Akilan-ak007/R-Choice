@@ -426,14 +426,14 @@ export default async function AnalyticsPage(props: { searchParams: SearchParams 
                         <div style={{ fontWeight: 600 }}>{item.companyName || "Company"}</div>
                         {item.companyId && (
                           <Link href={`/companies/${item.companyId}`} style={{ fontSize: "0.8rem", textDecoration: "none" }}>
-                            View Details
+                            View Company
                           </Link>
                         )}
                       </td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{item.jobTitle}</div>
                         <Link href={`/jobs/${item.jobId}`} style={{ fontSize: "0.8rem", textDecoration: "none" }}>
-                          View Details
+                          View Internship
                         </Link>
                       </td>
                       <td>{formatRole(item.status)}</td>

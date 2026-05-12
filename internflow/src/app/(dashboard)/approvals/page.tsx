@@ -104,7 +104,7 @@ export default async function ApprovalsPage(props: { searchParams: Promise<{ sta
                       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                         <span style={{ fontWeight: 600 }}>{req.studentName}</span>
                         <Link href={`/students/${req.studentId}`} style={{ fontSize: "0.8rem", color: "var(--primary-color)", textDecoration: "none", fontWeight: 600 }}>
-                          View Details
+                          View Student
                         </Link>
                       </div>
                     </td>

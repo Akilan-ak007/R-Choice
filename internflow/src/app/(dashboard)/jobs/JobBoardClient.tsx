@@ -345,7 +345,7 @@ export default function JobBoardClient({ jobs, interests, isStudent, appliedJobI
                     <div style={{ display: "flex", width: "100%", gap: "8px", flexDirection: "column" }}>
                       <div style={{ display: "flex", width: "100%", gap: "8px" }}>
                         <Link href={`/jobs/${job.id}`} className="btn btn-outline" style={{ display: "flex", flex: 1, justifyContent: "center", gap: "8px" }}>
-                          View Details
+                          View Internship
                         </Link>
                         <ApplyButton job={job} isApplied={appliedJobIds.includes(job.id)} />
                       </div>
@@ -358,7 +358,7 @@ export default function JobBoardClient({ jobs, interests, isStudent, appliedJobI
                   ) : (
                     <div style={{ display: "flex", width: "100%", gap: "8px" }}>
                       <Link href={`/jobs/${job.id}`} className="btn btn-outline" style={{ display: "flex", flex: 1, justifyContent: "center", gap: "8px" }}>
-                        View Details
+                        View Internship
                       </Link>
                       {job.companyId && (
                         <Link href={`/companies/${job.companyId}`} className="btn btn-outline" style={{ display: "flex", flex: 1, justifyContent: "center", gap: "8px" }}>

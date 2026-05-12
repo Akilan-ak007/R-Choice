@@ -102,18 +102,7 @@ export default function CreateJobPage() {
   const [perks, setPerks] = useState<string[]>([]);
   const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([]);
   const [contacts, setContacts] = useState<{ name: string; role: string; email: string; phone: string }[]>([]);
-  const [selectionRounds, setSelectionRounds] = useState<SelectionRoundDraft[]>([
-    {
-      roundName: "",
-      roundType: "custom",
-      startsAt: "",
-      endsAt: "",
-      mode: "Online",
-      meetLink: "",
-      location: "",
-      description: "",
-    },
-  ]);
+  const [selectionRounds, setSelectionRounds] = useState<SelectionRoundDraft[]>([]);
 
   // Tag input helpers
   const [skillInput, setSkillInput] = useState("");
@@ -400,6 +389,11 @@ export default function CreateJobPage() {
             <ListChecks size={18} color="var(--primary-color)" /> Selection Process
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {selectionRounds.length === 0 ? (
+              <div style={{ padding: "14px 16px", borderRadius: "10px", background: "var(--bg-secondary)", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+                Rounds are optional. Add round details only if this job needs a structured selection workflow.
+              </div>
+            ) : null}
             {selectionRounds.map((round, index) => (
               <div key={`round-${index}`} style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)", borderRadius: "12px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", position: "relative" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { CalendarDays, Building2, User, Briefcase, ExternalLink, CheckCircle2, Milestone, Check, Clock3 } from "lucide-react";
@@ -20,6 +20,8 @@ type QueueRow = {
   notes: string | null;
   odStatus: string | null;
   internshipRequestId: string | null;
+  odStartDate?: string | null;
+  odEndDate?: string | null;
 };
 
 type RoundProgress = {
@@ -34,61 +36,30 @@ export default function RaiseODQueueClient({
   rows: QueueRow[];
   roundProgressByApplication: Record<string, RoundProgress>;
 }) {
-  const initialDates = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return rows.reduce<Record<string, { startDate: string; endDate: string }>>((acc, row) => {
-      acc[row.resultPublicationId] = { startDate: today, endDate: today };
-      return acc;
-    }, {});
-  }, [rows]);
-
-  const [dates, setDates] = useState(initialDates);
   const [raisingId, setRaisingId] = useState<string | null>(null);
 
-  const updateDate = (id: string, field: "startDate" | "endDate", value: string) => {
-    setDates((prev) => ({
-      ...prev,
-      [id]: {
-        ...prev[id],
-        [field]: value,
-      },
-    }));
-  };
-
   const handleRaise = async (row: QueueRow) => {
-    const selectedDates = dates[row.resultPublicationId];
-    if (!selectedDates?.startDate || !selectedDates?.endDate) {
-      toast.error("Select both OD start and end dates.");
+    if (!row.odStartDate || !row.odEndDate) {
+      toast.error("Student OD dates are missing. Ask the student to resubmit the pipeline details.");
       return;
     }
 
     setRaisingId(row.resultPublicationId);
-    toast.loading("Raising OD request...", { id: row.resultPublicationId });
-
-    try {
-      const result = await raiseODFromSelection(
-        row.resultPublicationId,
-        selectedDates.startDate,
-        selectedDates.endDate
-      );
-
-      if (result.error) {
-        toast.error(result.error, { id: row.resultPublicationId });
-      } else {
-        toast.success("OD request raised successfully.", { id: row.resultPublicationId });
-      }
-    } catch {
-      toast.error("Failed to raise OD request.", { id: row.resultPublicationId });
-    } finally {
+    const result = await raiseODFromSelection(row.resultPublicationId, row.odStartDate, row.odEndDate);
+    if (result.error) {
+      toast.error(result.error);
       setRaisingId(null);
+      return;
     }
+    toast.success("OD raised successfully. The approval chain has started.");
+    setRaisingId(null);
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
       {rows.map((row) => {
-        const alreadyRaised = row.odStatus === "od_raised" || Boolean(row.internshipRequestId);
-        const selectedDates = dates[row.resultPublicationId] || { startDate: "", endDate: "" };
+        const alreadyRaised = row.odStatus === "od_raised";
+        const readyForPoRaise = row.odStatus === "awaiting_po_raise";
         const roundProgress = roundProgressByApplication[row.applicationId];
         const currentRound = roundProgress?.currentRound || null;
         const clearedRounds = roundProgress?.clearedRounds || [];
@@ -121,14 +92,14 @@ export default function RaiseODQueueClient({
                     borderRadius: "999px",
                     fontSize: "0.75rem",
                     fontWeight: 700,
-                    background: alreadyRaised ? "rgba(34, 197, 94, 0.12)" : "rgba(245, 158, 11, 0.12)",
-                    color: alreadyRaised ? "#16a34a" : "#d97706",
+                    background: alreadyRaised ? "rgba(34, 197, 94, 0.12)" : readyForPoRaise ? "rgba(59, 130, 246, 0.12)" : "rgba(245, 158, 11, 0.12)",
+                    color: alreadyRaised ? "#16a34a" : readyForPoRaise ? "#2563eb" : "#d97706",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                   }}
                 >
                   {alreadyRaised ? <CheckCircle2 size={14} /> : <CalendarDays size={14} />}
-                  {alreadyRaised ? "OD Raised" : "Awaiting PO Raise"}
+                  {alreadyRaised ? "OD Raised" : readyForPoRaise ? "Ready for PO Raise" : "Waiting for Student Submission"}
                 </span>
               </div>
             </div>
@@ -139,7 +110,7 @@ export default function RaiseODQueueClient({
                 <div style={{ fontWeight: 600 }}>{row.studentName}</div>
                 <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>{row.studentEmail}</div>
                 <Link href={`/students/${row.studentId}`} style={{ display: "inline-flex", gap: "6px", alignItems: "center", marginTop: "8px", color: "var(--primary-color)", textDecoration: "none", fontSize: "0.875rem" }}>
-                  <ExternalLink size={14} /> View Details
+                  <ExternalLink size={14} /> View Profile
                 </Link>
               </div>
 
@@ -147,7 +118,7 @@ export default function RaiseODQueueClient({
                 <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: "4px" }}>Company</div>
                 <div style={{ fontWeight: 600 }}>{row.companyName}</div>
                 <Link href={`/companies/${row.companyId}`} style={{ display: "inline-flex", gap: "6px", alignItems: "center", marginTop: "8px", color: "var(--primary-color)", textDecoration: "none", fontSize: "0.875rem" }}>
-                  <ExternalLink size={14} /> View Details
+                  <ExternalLink size={14} /> View Company
                 </Link>
               </div>
 
@@ -155,7 +126,7 @@ export default function RaiseODQueueClient({
                 <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: "4px" }}>Job</div>
                 <div style={{ fontWeight: 600 }}>{row.jobTitle}</div>
                 <Link href={`/jobs/${row.jobId}`} style={{ display: "inline-flex", gap: "6px", alignItems: "center", marginTop: "8px", color: "var(--primary-color)", textDecoration: "none", fontSize: "0.875rem" }}>
-                  <ExternalLink size={14} /> View Details
+                  <ExternalLink size={14} /> View Internship
                 </Link>
               </div>
             </div>
@@ -213,31 +184,18 @@ export default function RaiseODQueueClient({
               </div>
             )}
 
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-end" }}>
-              <label style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "180px" }}>
-                <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", fontWeight: 600 }}>OD Start Date</span>
-                <input
-                  type="date"
-                  className="input-field"
-                  value={selectedDates.startDate}
-                  onChange={(e) => updateDate(row.resultPublicationId, "startDate", e.target.value)}
-                  disabled={alreadyRaised}
-                />
-              </label>
-              <label style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "180px" }}>
-                <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", fontWeight: 600 }}>OD End Date</span>
-                <input
-                  type="date"
-                  className="input-field"
-                  value={selectedDates.endDate}
-                  onChange={(e) => updateDate(row.resultPublicationId, "endDate", e.target.value)}
-                  disabled={alreadyRaised}
-                />
-              </label>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ padding: "12px 14px", borderRadius: "10px", background: alreadyRaised ? "rgba(34, 197, 94, 0.08)" : readyForPoRaise ? "rgba(59, 130, 246, 0.08)" : "rgba(245, 158, 11, 0.08)", color: "var(--text-secondary)", fontSize: "0.875rem", flex: "1 1 320px" }}>
+                {alreadyRaised
+                  ? "Placement Officer already raised this OD request, and the approval chain has started."
+                  : readyForPoRaise
+                    ? `Student submitted the documents and dates (${row.odStartDate} to ${row.odEndDate}). Placement Officer can now click Raise OD.`
+                    : "Waiting for the student to submit OD dates, offer letter, and parent consent links from the My Applications page."}
+              </div>
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={alreadyRaised || raisingId === row.resultPublicationId}
+                disabled={!readyForPoRaise || raisingId === row.resultPublicationId}
                 onClick={() => handleRaise(row)}
                 style={{ minWidth: "180px" }}
               >

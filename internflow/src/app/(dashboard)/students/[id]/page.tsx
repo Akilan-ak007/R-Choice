@@ -82,6 +82,12 @@ function StudentField({ label, value, href }: { label: string; value?: string | 
   );
 }
 
+function getInitials(firstName?: string | null, lastName?: string | null) {
+  const first = firstName?.trim().charAt(0).toUpperCase() || "S";
+  const last = lastName?.trim().charAt(0).toUpperCase() || "";
+  return `${first}${last}`.trim();
+}
+
 export default async function StudentPortfolioPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await auth();
@@ -163,7 +169,7 @@ export default async function StudentPortfolioPage(props: { params: Promise<{ id
           {studentUser.avatarUrl ? (
             <Image src={studentUser.avatarUrl} alt={studentUser.firstName} width={80} height={80} style={{ width: "100%", height: "100%", borderRadius: "16px", objectFit: "cover" }} />
           ) : (
-            <GraduationCap size={40} />
+            <span style={{ fontSize: "1.5rem", fontWeight: 800 }}>{getInitials(studentUser.firstName, studentUser.lastName)}</span>
           )}
         </div>
         <div style={{ flex: 1 }}>

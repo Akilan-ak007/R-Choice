@@ -150,16 +150,16 @@ export default async function StudentsAppliedPage() {
 
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "var(--space-4)" }}>
                 <Link href={`/students/${app.studentId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                  View Details
+                  View Student
                 </Link>
                 {app.companyId && (
                   <Link href={`/companies/${app.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                    View Details
+                    View Company
                   </Link>
                 )}
                 {app.jobPostingId && (
                   <Link href={`/jobs/${app.jobPostingId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
-                    View Details
+                    View Internship
                   </Link>
                 )}
               </div>
