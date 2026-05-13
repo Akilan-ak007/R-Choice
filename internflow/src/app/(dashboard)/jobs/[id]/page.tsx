@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { MapPin, Clock, Banknote, Building2, ArrowLeft, Video } from "lucide-react";
 
-export default async function JobDetailPage({ params }: { params: { id: string } }) {
+export default async function JobDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await auth();
   if (!session?.user?.id) redirect("/");
 
