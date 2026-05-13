@@ -40,21 +40,27 @@ export default async function JobApprovalsPage(props: { searchParams: Promise<{ 
     .where(inArray(jobPostings.status, targetStatuses))
     .orderBy(desc(jobPostings.createdAt));
 
+  const isMcr = ["management_corporation", "mcr"].includes(role);
+
   return (
     <div className="animate-fade-in">
       <div className="page-header" style={{ marginBottom: "var(--space-6)" }}>
         <h1>Job Postings Review</h1>
         <p>
-          Review and approve internship and job opportunities before they become visible to students and staff.
+          {isMcr
+            ? "Review and approve job postings escalated by the Placement Officer."
+            : "Review and approve internship and job opportunities posted by faculties and companies."}
         </p>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "var(--space-3)" }}>
-          <Link href="/approvals/jobs?queue=po" className={queue === "po" ? "btn btn-primary" : "btn btn-outline"} style={{ textDecoration: "none" }}>
-            PO Review Queue
-          </Link>
-          <Link href="/approvals/jobs?queue=mcr" className={queue === "mcr" ? "btn btn-primary" : "btn btn-outline"} style={{ textDecoration: "none" }}>
-            MCR Review Queue
-          </Link>
-        </div>
+        {isMcr && (
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "var(--space-3)" }}>
+            <Link href="/approvals/jobs?queue=mcr" className={queue === "mcr" ? "btn btn-primary" : "btn btn-outline"} style={{ textDecoration: "none" }}>
+              MCR Review Queue
+            </Link>
+            <Link href="/approvals/jobs?queue=po" className={queue === "po" ? "btn btn-primary" : "btn btn-outline"} style={{ textDecoration: "none" }}>
+              PO Review Queue
+            </Link>
+          </div>
+        )}
       </div>
 
       <BulkApprovalClient jobs={jobs} />

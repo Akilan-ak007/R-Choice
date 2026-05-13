@@ -137,6 +137,7 @@ export function getNavSections(role: string): NavSection[] {
         { label: "Main", items: [
           { label: "Dashboard", href: "/dashboard/admin", icon: <LayoutDashboard size={20} /> },
           { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} /> },
+          { label: "Job Review", href: "/approvals/jobs", icon: <Briefcase size={20} /> },
           { label: "Selected Queue", href: "/approvals/results", icon: <ClipboardCheck size={20} /> },
           { label: "Reports", href: "/reports/admin", icon: <FileText size={20} /> },
           { label: "Analytics", href: "/analytics", icon: <BarChart3 size={20} /> },
