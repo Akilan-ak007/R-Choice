@@ -216,23 +216,11 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
                   )}
                 </div>
 
-                <Link href={`/companies/${company.id}`} style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  marginTop: "var(--space-3)",
-                  padding: "10px 16px",
-                  background: "var(--primary-color)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-md)",
-                  fontSize: "0.875rem",
-                  fontWeight: 600,
-                  textDecoration: "none",
-                  cursor: "pointer",
-                  transition: "opacity 0.2s ease",
-                }}>
+                <Link 
+                  href={`/companies/${company.id}`} 
+                  className="btn btn-primary"
+                  style={{ marginTop: "auto" }}
+                >
                   <Building size={14} /> View Full Details
                 </Link>
               </div>
