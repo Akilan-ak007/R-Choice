@@ -3,8 +3,8 @@ import { companyInvitations } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import RegistrationForm from "./RegistrationForm";
 
-export default async function RegisterCompanyPage({ params }: { params: { token: string } }) {
-  const { token } = params;
+export default async function RegisterCompanyPage(props: { params: Promise<{ token: string }> }) {
+  const { token } = await props.params;
 
   // Validate Token existence before showing form
   const [invitation] = await db.select().from(companyInvitations).where(eq(companyInvitations.token, token)).limit(1);

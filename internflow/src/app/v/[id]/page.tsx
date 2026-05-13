@@ -19,7 +19,8 @@ type PublicProfile = {
   skills?: Array<{ skillType?: string | null; proficiency?: string | null; skillName: string }>;
 };
 
-export default async function VCardPage({ params }: { params: { id: string } }) {
+export default async function VCardPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const profile = (await getPublicProfile(params.id)) as PublicProfile | null;
 
   if (!profile) return notFound();
