@@ -24,7 +24,7 @@ export default function CollegeStructureClient({ initialHierarchy }: { initialHi
   const router = useRouter();
 
   // ── Modal states ──
-  const [showModal, setShowModal] = useState<"section" | "course" | "dept" | null>(null);
+  const [showModal, setShowModal] = useState<"school" | "section" | "course" | "dept" | null>(null);
   const [modalTarget, setModalTarget] = useState<{ schoolIdx: number; sectionIdx?: number; courseIdx?: number }>({ schoolIdx: 0 });
   const [modalValue, setModalValue] = useState("");
   const [modalProgramType, setModalProgramType] = useState<"UG" | "PG">("UG");
@@ -33,6 +33,22 @@ export default function CollegeStructureClient({ initialHierarchy }: { initialHi
   const [editingItem, setEditingItem] = useState<{ type: string; path: number[]; value: string } | null>(null);
 
   const markChanged = () => setHasChanges(true);
+
+  const addSchool = () => {
+    if (!modalValue.trim()) return;
+    const h = [...hierarchy];
+    h.push({ school: modalValue.trim(), sections: [] });
+    setHierarchy(h);
+    markChanged();
+    closeModal();
+  };
+
+  const deleteSchool = (schoolIdx: number) => {
+    const h = [...hierarchy];
+    h.splice(schoolIdx, 1);
+    setHierarchy(h);
+    markChanged();
+  };
 
   // ── Section CRUD ──
   const addSection = () => {
@@ -127,7 +143,7 @@ export default function CollegeStructureClient({ initialHierarchy }: { initialHi
   };
 
   // ── Modal helpers ──
-  const openModal = (type: "section" | "course" | "dept", target: typeof modalTarget) => {
+  const openModal = (type: "school" | "section" | "course" | "dept", target: typeof modalTarget) => {
     setShowModal(type);
     setModalTarget(target);
     setModalValue("");
@@ -140,6 +156,7 @@ export default function CollegeStructureClient({ initialHierarchy }: { initialHi
   };
 
   const labelTitles: Record<string, string> = {
+    school: "School Name",
     section: "Section Name",
     course: "Course Name",
     dept: "Department / Specialization Name",
@@ -166,6 +183,16 @@ export default function CollegeStructureClient({ initialHierarchy }: { initialHi
         </div>
       )}
 
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button
+          onClick={() => openModal("school", { schoolIdx: hierarchy.length })}
+          className="btn btn-primary"
+          style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+        >
+          <Plus size={16} /> Add School
+        </button>
+      </div>
+
       {/* Schools */}
       {hierarchy.map((school, si) => (
         <div key={school.school} className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -185,6 +212,17 @@ export default function CollegeStructureClient({ initialHierarchy }: { initialHi
             {school.school}
             <span style={{ marginLeft: "auto", color: "var(--text-secondary)", fontSize: "0.8rem" }}>
               {school.sections.length} sections
+            </span>
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteSchool(si);
+              }}
+              style={{ display: "inline-flex", alignItems: "center", color: "#ef4444" }}
+              role="button"
+              aria-label={`Delete ${school.school}`}
+            >
+              <Trash2 size={14} />
             </span>
             {expandedSchool === school.school ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
           </button>
@@ -355,7 +393,7 @@ export default function CollegeStructureClient({ initialHierarchy }: { initialHi
             </button>
 
             <h2 style={{ fontSize: "1.125rem", fontWeight: 700, marginBottom: "var(--space-4)" }}>
-              Add New {showModal === "section" ? "Section" : showModal === "course" ? "Course" : "Department"}
+              Add New {showModal === "school" ? "School" : showModal === "section" ? "Section" : showModal === "course" ? "Course" : "Department"}
             </h2>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
@@ -370,12 +408,13 @@ export default function CollegeStructureClient({ initialHierarchy }: { initialHi
                   onChange={e => setModalValue(e.target.value)}
                   onKeyDown={e => {
                     if (e.key === "Enter") {
-                      if (showModal === "section") addSection();
+                      if (showModal === "school") addSchool();
+                      else if (showModal === "section") addSection();
                       else if (showModal === "course") addCourse();
                       else addDepartment();
                     }
                   }}
-                  placeholder={`e.g. ${showModal === "section" ? "Commerce 5" : showModal === "course" ? "B.Tech" : "Data Science"}`}
+                  placeholder={`e.g. ${showModal === "school" ? "School of Computing" : showModal === "section" ? "Commerce 5" : showModal === "course" ? "B.Tech" : "Data Science"}`}
                   style={{ width: "100%" }}
                 />
               </div>
@@ -399,14 +438,15 @@ export default function CollegeStructureClient({ initialHierarchy }: { initialHi
 
               <button
                 onClick={() => {
-                  if (showModal === "section") addSection();
+                  if (showModal === "school") addSchool();
+                  else if (showModal === "section") addSection();
                   else if (showModal === "course") addCourse();
                   else addDepartment();
                 }}
                 className="btn btn-primary"
                 style={{ padding: "10px 20px", display: "flex", alignItems: "center", gap: "6px", justifyContent: "center" }}
               >
-                <Plus size={16} /> Add {showModal === "section" ? "Section" : showModal === "course" ? "Course" : "Department"}
+                <Plus size={16} /> Add {showModal === "school" ? "School" : showModal === "section" ? "Section" : showModal === "course" ? "Course" : "Department"}
               </button>
             </div>
           </div>

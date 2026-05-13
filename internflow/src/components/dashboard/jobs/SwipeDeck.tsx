@@ -11,6 +11,7 @@ type SwipeJob = {
   description: string;
   location: string;
   companyName?: string | null;
+  companyId?: string | null;
   stipendInfo?: string | null;
   workMode?: string | null;
   requiredSkills?: string[] | null;

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { getAuthorityMappingsForRole } from "@/lib/authority-scope";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { authorityMappings, users } from "@/lib/db/schema";
@@ -9,15 +10,24 @@ export default async function HierarchyPage() {
   const session = await auth();
   const role = session?.user?.role;
 
-  if (!role || !["placement_officer", "principal", "dean", "hod", "mcr", "coe", "placement_head", "management_corporation"].includes(role)) {
+  if (!role || !["principal", "dean", "hod", "mcr", "coe", "placement_head", "management_corporation"].includes(role)) {
     redirect("/");
   }
 
-  // Fetch existing mappings
   const rawMappings = await db.select().from(authorityMappings);
+  const scopeMappings = session?.user?.id && role === "hod" ? await getAuthorityMappingsForRole(session.user.id, role) : [];
+  const visibleMappings =
+    role === "hod"
+      ? rawMappings.filter((mapping) =>
+          scopeMappings.some(
+            (scope) =>
+              scope.department === mapping.department &&
+              (!scope.school || scope.school === mapping.school)
+          )
+        )
+      : rawMappings;
 
-  // Normalize nulls for safe client-side rendering
-  const mappings = rawMappings.map((m) => ({
+  const mappings = visibleMappings.map((m) => ({
     id: m.id,
     school: m.school || null,
     section: m.section || null,

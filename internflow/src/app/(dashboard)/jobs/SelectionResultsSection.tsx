@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Trophy, Filter, Calendar, Building2, User, CheckCircle2, Clock, AlertCircle, ShieldCheck, SendHorizonal, Loader2 } from "lucide-react";
-import { raiseODForStudents } from "@/app/actions/applications";
-import { toast } from "sonner";
+import { Trophy, Filter, Calendar, Building2, User, CheckCircle2, Clock, AlertCircle, ShieldCheck, SendHorizonal } from "lucide-react";
 import Link from "next/link";
 
 interface SelectionResult {
@@ -16,10 +14,9 @@ interface SelectionResult {
   appliedAt: Date | null;
   updatedAt: Date | null;
   isVerified?: boolean | null;
-  verificationCode?: string | null;
 }
 
-function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: string | undefined, hasCode: boolean | undefined) {
+function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: string | undefined) {
   if (odStatus === "approved") {
     return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(34, 197, 94, 0.12)", color: "#22c55e" }}><CheckCircle2 size={11} /> OD Approved</span>;
   }
@@ -33,15 +30,11 @@ function getODStatusBadge(isVerified: boolean | null | undefined, odStatus: stri
   if (isVerified) {
     return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(16, 185, 129, 0.12)", color: "#10b981" }}><ShieldCheck size={11} /> Verified</span>;
   }
-  if (hasCode) {
-    return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(168, 85, 247, 0.12)", color: "#a855f7" }}><SendHorizonal size={11} /> Code Sent</span>;
-  }
-  return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}><Clock size={11} /> Awaiting Verification</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "100px", fontSize: "0.65rem", fontWeight: 700, background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}><Clock size={11} /> Waiting for Student OD Submission</span>;
 }
 
 export default function SelectionResultsSection({ results, odStatusMap = {}, viewerRole }: { results: SelectionResult[]; odStatusMap?: Record<string, string>; viewerRole?: string }) {
   const [filter, setFilter] = useState<"recent" | "all">("recent");
-  const [isRaisingOD, setIsRaisingOD] = useState(false);
 
   const isAuthority = ["tutor", "placement_coordinator", "hod", "dean", "placement_officer", "principal", "placement_head", "coe"].includes(viewerRole || "");
   const isPO = viewerRole === "placement_officer";
@@ -57,29 +50,6 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
 
   // Students who haven't started OD yet (no odStatus and not verified)
   const studentsNeedingOD = filteredResults.filter(r => !r.isVerified && !odStatusMap[r.studentId]);
-  // Students who actually need a code (haven't received one yet)
-  const studentsNeedingCode = studentsNeedingOD.filter(r => !r.verificationCode);
-
-  const handleRaiseOD = async () => {
-    if (studentsNeedingCode.length === 0) {
-      toast.info("All students have already received their codes or started OD.");
-      return;
-    }
-
-    setIsRaisingOD(true);
-    try {
-      const studentIds = studentsNeedingCode.map(r => r.studentId);
-      const res = await raiseODForStudents(studentIds);
-      if (res.error) {
-        toast.error(res.error);
-      } else {
-        toast.success(res.message || "OD process raised successfully!");
-      }
-    } catch {
-      toast.error("Failed to raise OD.");
-    }
-    setIsRaisingOD(false);
-  };
 
   if (results.length === 0) return null;
 
@@ -90,11 +60,10 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
           <Trophy size={22} color="#f59e0b" /> Selection Results
         </h2>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-          {/* Raise OD CTA — visible only to Placement Officer */}
+          {/* Selected students monitoring CTA for Placement Officer */}
           {isPO && studentsNeedingOD.length > 0 && (
-            <button
-              onClick={handleRaiseOD}
-              disabled={isRaisingOD || studentsNeedingCode.length === 0}
+            <Link
+              href="/approvals/results"
               className="btn"
               style={{
                 borderRadius: "100px",
@@ -104,17 +73,18 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
-                background: studentsNeedingCode.length === 0 ? "var(--bg-hover)" : "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                color: studentsNeedingCode.length === 0 ? "var(--text-secondary)" : "white",
+                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                color: "white",
                 border: "none",
                 fontWeight: 600,
-                boxShadow: studentsNeedingCode.length === 0 ? "none" : "0 2px 8px rgba(99, 102, 241, 0.3)",
-                cursor: studentsNeedingCode.length === 0 ? "not-allowed" : "pointer"
+                boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
+                cursor: "pointer",
+                textDecoration: "none",
               }}
             >
-              {isRaisingOD ? <Loader2 size={14} className="animate-spin" /> : <SendHorizonal size={14} />}
-              {studentsNeedingCode.length === 0 ? "Codes Sent" : `Raise OD (${studentsNeedingCode.length})`}
-            </button>
+              <SendHorizonal size={14} />
+              {`Review Selected Queue (${studentsNeedingOD.length})`}
+            </Link>
           )}
           {(["recent", "all"] as const).map(f => (
             <button
@@ -146,7 +116,7 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
                   <User size={18} color="#f59e0b" />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <Link href={`/portfolio/${r.studentId}`} style={{ fontWeight: 600, margin: 0, fontSize: "0.95rem", color: "var(--primary-color)", textDecoration: "none" }}>
+                  <Link href={`/students/${r.studentId}`} style={{ fontWeight: 600, margin: 0, fontSize: "0.95rem", color: "var(--primary-color)", textDecoration: "none" }}>
                     {r.studentFirstName} {r.studentLastName}
                   </Link>
                   <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: 0 }}>{r.jobTitle}</p>
@@ -156,7 +126,7 @@ export default function SelectionResultsSection({ results, odStatusMap = {}, vie
               {/* OD Status Badge — visible to authorities and the student themselves */}
               {(isAuthority || viewerRole === "student") && (
                 <div style={{ marginBottom: "8px" }}>
-                  {getODStatusBadge(r.isVerified, odStatusMap[r.studentId], !!r.verificationCode)}
+                  {getODStatusBadge(r.isVerified, odStatusMap[r.studentId])}
                 </div>
               )}
 

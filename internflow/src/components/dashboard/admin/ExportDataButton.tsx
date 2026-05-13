@@ -84,11 +84,11 @@ export function ExportDataButton() {
           <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "8px" }}>
             {status === "idle" && "Export Data"}
             {status === "preparing" && "Compressing Database..."}
-            {status === "generating" && `Generating Excel (${progress}%)`}
+            {status === "generating" && `Generating Export (${progress}%)`}
             {status === "done" && "Download Ready"}
           </p>
           <p style={{ fontSize: "0.8125rem", color: status === "done" ? "var(--color-success)" : "var(--text-secondary)" }}>
-            {status === "idle" && "Download reports as Excel sheets"}
+            {status === "idle" && "Download platform data as CSV exports"}
             {status === "preparing" && "Gathering metadata mapping"}
             {status === "generating" && "Compiling thousands of records"}
             {status === "done" && "Clicking will start download"}

@@ -17,9 +17,6 @@ export default async function AdminReportsPage() {
   // Fetch unique values for filter dropdowns directly from the server
   const filterOptions = await fetchReportFilterOptions();
 
-  const { getCollegeHierarchy } = await import("@/app/actions/hierarchy");
-  const dynamicHierarchy = await getCollegeHierarchy();
-
   return (
     <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
       <div className="page-header">
@@ -30,7 +27,7 @@ export default async function AdminReportsPage() {
         </p>
       </div>
 
-      <ReportsClient filterOptions={filterOptions} collegeHierarchy={dynamicHierarchy} />
+      <ReportsClient filterOptions={filterOptions} />
     </div>
   );
 }

@@ -5,95 +5,105 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Building, Globe, MapPin, Phone, Mail, Calendar,
+  ArrowLeft, Building, MapPin, Phone, Calendar,
   User, Shield, FileText, Briefcase, Award, ExternalLink,
 } from "lucide-react";
+
+const companySectionStyle: React.CSSProperties = {
+  background: "var(--bg-primary)",
+  border: "1px solid var(--border-color)",
+  borderRadius: "var(--radius-lg)",
+  padding: "var(--space-5)",
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--space-4)",
+};
+
+const companySectionHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  fontSize: "1.1rem",
+  fontWeight: 600,
+  color: "var(--text-primary)",
+  borderBottom: "1px solid var(--border-color)",
+  paddingBottom: "var(--space-3)",
+};
+
+const companyFieldRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "var(--space-3)",
+};
+
+const companyFieldStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+};
+
+const companyLabelStyle: React.CSSProperties = {
+  fontSize: "0.75rem",
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  color: "var(--text-muted)",
+};
+
+const companyValueStyle: React.CSSProperties = {
+  fontSize: "0.9375rem",
+  color: "var(--text-primary)",
+  fontWeight: 500,
+};
+
+function CompanyField({ label, value, href }: { label: string; value?: string | number | null; href?: string }) {
+  if (!value) return null;
+  return (
+    <div style={companyFieldStyle}>
+      <span style={companyLabelStyle}>{label}</span>
+      {href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" style={{ ...companyValueStyle, color: "var(--primary-color)", textDecoration: "none", display: "flex", alignItems: "center", gap: "4px" }}>
+          {String(value)} <ExternalLink size={12} />
+        </a>
+      ) : (
+        <span style={companyValueStyle}>{String(value)}</span>
+      )}
+    </div>
+  );
+}
 
 export default async function CompanyPortfolioPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await auth();
   if (!session?.user?.id) redirect("/");
 
-  // Fetch company user
-  const [companyUser] = await db
+  const [regById] = await db
     .select()
-    .from(users)
-    .where(eq(users.id, params.id))
+    .from(companyRegistrations)
+    .where(eq(companyRegistrations.id, params.id))
     .limit(1);
 
-  if (!companyUser || companyUser.role !== "company") {
+  const [regByUserId] = regById
+    ? [undefined]
+    : await db
+        .select()
+        .from(companyRegistrations)
+        .where(eq(companyRegistrations.userId, params.id))
+        .limit(1);
+
+  const reg = regById || regByUserId;
+
+  if (!reg) {
     redirect("/companies");
   }
 
-  // Fetch company registration data
-  const [reg] = await db
-    .select()
-    .from(companyRegistrations)
-    .where(eq(companyRegistrations.userId, params.id))
-    .limit(1);
-
-  const sectionStyle: React.CSSProperties = {
-    background: "var(--bg-primary)",
-    border: "1px solid var(--border-color)",
-    borderRadius: "var(--radius-lg)",
-    padding: "var(--space-5)",
-    display: "flex",
-    flexDirection: "column",
-    gap: "var(--space-4)",
-  };
-
-  const sectionHeaderStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    fontSize: "1.1rem",
-    fontWeight: 600,
-    color: "var(--text-primary)",
-    borderBottom: "1px solid var(--border-color)",
-    paddingBottom: "var(--space-3)",
-  };
-
-  const fieldRowStyle: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: "var(--space-3)",
-  };
-
-  const fieldStyle: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    gap: "4px",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: "0.75rem",
-    fontWeight: 600,
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    color: "var(--text-muted)",
-  };
-
-  const valueStyle: React.CSSProperties = {
-    fontSize: "0.9375rem",
-    color: "var(--text-primary)",
-    fontWeight: 500,
-  };
-
-  function Field({ label, value, href }: { label: string; value?: string | number | null; href?: string }) {
-    if (!value) return null;
-    return (
-      <div style={fieldStyle}>
-        <span style={labelStyle}>{label}</span>
-        {href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" style={{ ...valueStyle, color: "var(--primary-color)", textDecoration: "none", display: "flex", alignItems: "center", gap: "4px" }}>
-            {String(value)} <ExternalLink size={12} />
-          </a>
-        ) : (
-          <span style={valueStyle}>{String(value)}</span>
-        )}
-      </div>
-    );
-  }
+  const [companyUser] = reg.userId
+    ? await db
+        .select()
+        .from(users)
+        .where(eq(users.id, reg.userId))
+        .limit(1)
+    : [];
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: "960px", margin: "0 auto" }}>
@@ -130,7 +140,7 @@ export default async function CompanyPortfolioPage(props: { params: Promise<{ id
         </div>
         <div style={{ flex: 1 }}>
           <h1 style={{ margin: 0, fontSize: "1.75rem", fontWeight: 700 }}>
-            {reg?.companyLegalName || `${companyUser.firstName} ${companyUser.lastName}`}
+            {reg.companyLegalName || [companyUser?.firstName, companyUser?.lastName].filter(Boolean).join(" ") || "Company"}
           </h1>
           {reg?.brandName && (
             <p style={{ margin: "4px 0 0", opacity: 0.85, fontSize: "1rem" }}>
@@ -171,8 +181,8 @@ export default async function CompanyPortfolioPage(props: { params: Promise<{ id
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
 
         {/* Company Overview */}
-        <div style={sectionStyle}>
-          <div style={sectionHeaderStyle}>
+        <div style={companySectionStyle}>
+          <div style={companySectionHeaderStyle}>
             <Building size={18} color="var(--primary-color)" /> Company Overview
           </div>
           {reg?.companyDescription && (
@@ -180,76 +190,76 @@ export default async function CompanyPortfolioPage(props: { params: Promise<{ id
               {reg.companyDescription}
             </p>
           )}
-          <div style={fieldRowStyle}>
-            <Field label="Year Established" value={reg?.yearEstablished} />
-            <Field label="Website" value={reg?.website} href={reg?.website || undefined} />
-            <Field label="Email" value={companyUser.email} href={`mailto:${companyUser.email}`} />
-            <Field label="Phone" value={companyUser.phone} href={companyUser.phone ? `tel:${companyUser.phone}` : undefined} />
+          <div style={companyFieldRowStyle}>
+            <CompanyField label="Year Established" value={reg?.yearEstablished} />
+            <CompanyField label="Website" value={reg?.website} href={reg?.website || undefined} />
+            <CompanyField label="Email" value={companyUser?.email || reg.hrEmail} href={(companyUser?.email || reg.hrEmail) ? `mailto:${companyUser?.email || reg.hrEmail}` : undefined} />
+            <CompanyField label="Phone" value={companyUser?.phone || reg.hrPhone} href={companyUser?.phone ? `tel:${companyUser.phone}` : reg.hrPhone ? `tel:${reg.hrPhone}` : undefined} />
           </div>
         </div>
 
         {/* Location */}
         {reg && (
-          <div style={sectionStyle}>
-            <div style={sectionHeaderStyle}>
+          <div style={companySectionStyle}>
+            <div style={companySectionHeaderStyle}>
               <MapPin size={18} color="var(--primary-color)" /> Location
             </div>
-            <div style={fieldRowStyle}>
-              <Field label="Address" value={reg.address} />
-              <Field label="City" value={reg.city} />
-              <Field label="State" value={reg.state} />
-              <Field label="PIN Code" value={reg.pinCode} />
+            <div style={companyFieldRowStyle}>
+              <CompanyField label="Address" value={reg.address} />
+              <CompanyField label="City" value={reg.city} />
+              <CompanyField label="State" value={reg.state} />
+              <CompanyField label="PIN Code" value={reg.pinCode} />
             </div>
           </div>
         )}
 
         {/* HR Contact */}
         {reg && (
-          <div style={sectionStyle}>
-            <div style={sectionHeaderStyle}>
+          <div style={companySectionStyle}>
+            <div style={companySectionHeaderStyle}>
               <Phone size={18} color="var(--primary-color)" /> HR Contact
             </div>
-            <div style={fieldRowStyle}>
-              <Field label="HR Name" value={reg.hrName} />
-              <Field label="HR Email" value={reg.hrEmail} href={`mailto:${reg.hrEmail}`} />
-              <Field label="HR Phone" value={reg.hrPhone} href={`tel:${reg.hrPhone}`} />
-              <Field label="Alternate Phone" value={reg.altPhone} />
+            <div style={companyFieldRowStyle}>
+              <CompanyField label="HR Name" value={reg.hrName} />
+              <CompanyField label="HR Email" value={reg.hrEmail} href={`mailto:${reg.hrEmail}`} />
+              <CompanyField label="HR Phone" value={reg.hrPhone} href={`tel:${reg.hrPhone}`} />
+              <CompanyField label="Alternate Phone" value={reg.altPhone} />
             </div>
           </div>
         )}
 
         {/* CEO / Signatory */}
         {reg?.ceoName && (
-          <div style={sectionStyle}>
-            <div style={sectionHeaderStyle}>
+          <div style={companySectionStyle}>
+            <div style={companySectionHeaderStyle}>
               <User size={18} color="var(--primary-color)" /> CEO / Authorized Signatory
             </div>
-            <div style={fieldRowStyle}>
-              <Field label="Name" value={reg.ceoName} />
-              <Field label="Designation" value={reg.ceoDesignation} />
-              <Field label="Email" value={reg.ceoEmail} href={reg.ceoEmail ? `mailto:${reg.ceoEmail}` : undefined} />
-              <Field label="Phone" value={reg.ceoPhone} />
-              <Field label="LinkedIn" value={reg.ceoLinkedin ? "View Profile" : null} href={reg.ceoLinkedin || undefined} />
-              <Field label="Portfolio" value={reg.ceoPortfolio ? "View Portfolio" : null} href={reg.ceoPortfolio || undefined} />
+            <div style={companyFieldRowStyle}>
+              <CompanyField label="Name" value={reg.ceoName} />
+              <CompanyField label="Designation" value={reg.ceoDesignation} />
+              <CompanyField label="Email" value={reg.ceoEmail} href={reg.ceoEmail ? `mailto:${reg.ceoEmail}` : undefined} />
+              <CompanyField label="Phone" value={reg.ceoPhone} />
+              <CompanyField label="LinkedIn" value={reg.ceoLinkedin ? "View Profile" : null} href={reg.ceoLinkedin || undefined} />
+              <CompanyField label="Portfolio" value={reg.ceoPortfolio ? "View Portfolio" : null} href={reg.ceoPortfolio || undefined} />
             </div>
           </div>
         )}
 
         {/* Internship Preferences */}
         {reg && (
-          <div style={sectionStyle}>
-            <div style={sectionHeaderStyle}>
+          <div style={companySectionStyle}>
+            <div style={companySectionHeaderStyle}>
               <Briefcase size={18} color="var(--primary-color)" /> Internship Preferences
             </div>
-            <div style={fieldRowStyle}>
-              <Field label="Internship Type" value={reg.internshipType} />
-              <Field label="Duration" value={reg.duration} />
-              <Field label="Stipend Range" value={reg.stipendRange} />
-              <Field label="Hiring Intention" value={reg.hiringIntention} />
+            <div style={companyFieldRowStyle}>
+              <CompanyField label="Internship Type" value={reg.internshipType} />
+              <CompanyField label="Duration" value={reg.duration} />
+              <CompanyField label="Stipend Range" value={reg.stipendRange} />
+              <CompanyField label="Hiring Intention" value={reg.hiringIntention} />
             </div>
             {reg.domains && reg.domains.length > 0 && (
-              <div style={fieldStyle}>
-                <span style={labelStyle}>Domains</span>
+              <div style={companyFieldStyle}>
+                <span style={companyLabelStyle}>Domains</span>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                   {reg.domains.map((d, i) => (
                     <span key={i} style={{
@@ -271,14 +281,14 @@ export default async function CompanyPortfolioPage(props: { params: Promise<{ id
 
         {/* Legal & Compliance */}
         {reg && (reg.gstNumber || reg.panNumber || reg.cinLlpin) && (
-          <div style={sectionStyle}>
-            <div style={sectionHeaderStyle}>
+          <div style={companySectionStyle}>
+            <div style={companySectionHeaderStyle}>
               <Shield size={18} color="var(--primary-color)" /> Legal & Compliance
             </div>
-            <div style={fieldRowStyle}>
-              <Field label="GST Number" value={reg.gstNumber} />
-              <Field label="PAN Number" value={reg.panNumber} />
-              <Field label="CIN / LLPIN" value={reg.cinLlpin} />
+            <div style={companyFieldRowStyle}>
+              <CompanyField label="GST Number" value={reg.gstNumber} />
+              <CompanyField label="PAN Number" value={reg.panNumber} />
+              <CompanyField label="CIN / LLPIN" value={reg.cinLlpin} />
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", marginTop: "var(--space-2)" }}>
               {reg.registrationCertUrl && (
@@ -309,7 +319,7 @@ export default async function CompanyPortfolioPage(props: { params: Promise<{ id
         <div style={{ padding: "var(--space-4)", borderRadius: "var(--radius-md)", background: "var(--bg-secondary)", textAlign: "center" }}>
           <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--text-muted)" }}>
             <Calendar size={14} style={{ verticalAlign: "middle", marginRight: "6px" }} />
-            {companyUser.createdAt ? `Registered on R-Choice: ${new Date(companyUser.createdAt).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}` : "Member of R-Choice"}
+            {reg.createdAt ? `Registered on R-Choice: ${new Date(reg.createdAt).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}` : "Member of R-Choice"}
           </p>
         </div>
       </div>

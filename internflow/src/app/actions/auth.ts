@@ -66,12 +66,15 @@ export async function loginAction(formData: FormData) {
   }
 
   try {
-    await signIn("credentials", {
+    const result = await signIn("credentials", {
+      redirect: false,
       email,
       password,
       role,
-      redirectTo: getRedirectUrl(role),
     });
+    
+    // In NextAuth v5 Server Actions, redirect: false might just return without throwing
+    return { success: true, redirectUrl: getRedirectUrl(role) };
   } catch (error: unknown) {
     if (error instanceof AuthError) {
       switch (error.type) {
@@ -81,7 +84,13 @@ export async function loginAction(formData: FormData) {
           return { error: "Something went wrong. Please try again." };
       }
     }
-    throw error; // Re-throw non-auth errors (e.g., redirect)
+    
+    // Check if it's a redirect error (which next-auth throws when successful if redirect: true, but we used redirect: false, though sometimes next-auth still throws it)
+    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
+      return { success: true, redirectUrl: getRedirectUrl(role) };
+    }
+    
+    throw error; // Re-throw non-auth errors
   }
 }
 

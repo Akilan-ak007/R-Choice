@@ -1,30 +1,34 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { jobPostings, users } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { jobPostings, companyRegistrations } from "@/lib/db/schema";
+import { desc, eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Building2 } from "lucide-react";
 import JobApprovalActions from "./JobApprovalActions";
 
 export const dynamic = "force-dynamic";
-export default async function JobApprovalsPage() {
+export default async function JobApprovalsPage(props: { searchParams: Promise<{ queue?: string }> }) {
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/");
   }
 
   const role = session.user.role;
-  if (role !== "placement_officer" && role !== "management_corporation") {
+  if (!["placement_officer", "management_corporation", "mcr"].includes(role)) {
     redirect("/");
   }
 
-  const targetStatus = role === "management_corporation" ? "pending_mcr_approval" : "pending_review";
+  const searchParams = await props.searchParams;
+  const queue = searchParams.queue || (role === "placement_officer" ? "po" : "mcr");
+  const targetStatuses: Array<"pending_review" | "pending_mcr_approval"> = queue === "po" ? ["pending_review"] : ["pending_mcr_approval"];
 
   const jobs = await db
     .select({
       id: jobPostings.id,
       title: jobPostings.title,
-      companyName: users.firstName,
+      companyId: companyRegistrations.id,
+      companyName: companyRegistrations.companyLegalName,
       stipend: jobPostings.stipendSalary,
       location: jobPostings.location,
       description: jobPostings.description,
@@ -33,8 +37,8 @@ export default async function JobApprovalsPage() {
       createdAt: jobPostings.createdAt
     })
     .from(jobPostings)
-    .innerJoin(users, eq(jobPostings.postedBy, users.id))
-    .where(eq(jobPostings.status, targetStatus))
+    .leftJoin(companyRegistrations, eq(jobPostings.companyId, companyRegistrations.id))
+    .where(inArray(jobPostings.status, targetStatuses))
     .orderBy(desc(jobPostings.createdAt));
 
   return (
@@ -42,10 +46,16 @@ export default async function JobApprovalsPage() {
       <div className="page-header" style={{ marginBottom: "var(--space-6)" }}>
         <h1>Job Postings Review</h1>
         <p>
-          {role === "management_corporation" 
-            ? "Review and approve internship/job opportunities posted by companies before they are sent to the Placement Officer."
-            : "Review and verify internship opportunities before making them visible to students."}
+          Review and approve internship and job opportunities before they become visible to students and staff.
         </p>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "var(--space-3)" }}>
+          <Link href="/approvals/jobs?queue=po" className={queue === "po" ? "btn btn-primary" : "btn btn-outline"} style={{ textDecoration: "none" }}>
+            PO Review Queue
+          </Link>
+          <Link href="/approvals/jobs?queue=mcr" className={queue === "mcr" ? "btn btn-primary" : "btn btn-outline"} style={{ textDecoration: "none" }}>
+            MCR Review Queue
+          </Link>
+        </div>
       </div>
 
       {jobs.length === 0 ? (
@@ -76,6 +86,17 @@ export default async function JobApprovalsPage() {
                 <div style={{ flexShrink: 0 }}>
                   <JobApprovalActions jobId={job.id} />
                 </div>
+              </div>
+
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <Link href={`/jobs/${job.id}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    View Internship
+                  </Link>
+                {job.companyId && (
+                  <Link href={`/companies/${job.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    View Company
+                  </Link>
+                )}
               </div>
 
               <div style={{ background: "var(--bg-hover)", padding: "var(--space-4)", borderRadius: "var(--border-radius-md)" }}>

@@ -1,8 +1,9 @@
 import { auth } from "@/lib/auth";
+import Link from "next/link";
 import { User, Bell, Shield, Smartphone } from "lucide-react";
 import { db } from "@/lib/db";
 import ChangePasswordForm from "./ChangePasswordForm";
-import { users } from "@/lib/db/schema";
+import { approvalSlaSettings, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -15,6 +16,21 @@ export default async function SettingsPage() {
   // Fetch full user data from DB for all roles
   const [u] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
   if (!u) return null;
+  const canManageOdSla = role === "management_corporation" || role === "mcr";
+  const canViewOdSla = canManageOdSla || role === "placement_officer" || role === "placement_head";
+
+  const [odSlaSetting] = canViewOdSla
+    ? await db
+        .select()
+        .from(approvalSlaSettings)
+        .where(eq(approvalSlaSettings.scope, "default_od"))
+        .limit(1)
+    : [];
+
+  const activeOdSlaHours = odSlaSetting?.slaHours ?? 6;
+  const activeOdSlaUpdatedAt = odSlaSetting?.updatedAt
+    ? new Date(odSlaSetting.updatedAt).toLocaleString("en-IN")
+    : "Default launch policy";
 
   async function updateProfile(formData: FormData) {
     "use server";
@@ -28,6 +44,50 @@ export default async function SettingsPage() {
     }).where(eq(users.id, session.user.id));
     revalidatePath("/profile");
     revalidatePath("/settings");
+  }
+
+  async function updateOdSla(formData: FormData) {
+    "use server";
+
+    const session = await auth();
+    if (!session?.user?.id || session.user.role !== "management_corporation") {
+      return;
+    }
+
+    const rawHours = Number(formData.get("slaHours"));
+    const slaHours = Number.isFinite(rawHours) ? Math.floor(rawHours) : NaN;
+
+    if (!Number.isFinite(slaHours) || slaHours < 1 || slaHours > 168) {
+      return;
+    }
+
+    const [existing] = await db
+      .select({ id: approvalSlaSettings.id })
+      .from(approvalSlaSettings)
+      .where(eq(approvalSlaSettings.scope, "default_od"))
+      .limit(1);
+
+    if (existing) {
+      await db
+        .update(approvalSlaSettings)
+        .set({
+          slaHours,
+          updatedBy: session.user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(approvalSlaSettings.id, existing.id));
+    } else {
+      await db.insert(approvalSlaSettings).values({
+        scope: "default_od",
+        slaHours,
+        updatedBy: session.user.id,
+      });
+    }
+
+    revalidatePath("/settings");
+    revalidatePath("/approvals");
+    revalidatePath("/approvals/results");
+    revalidatePath("/dashboard/admin");
   }
 
   return (
@@ -140,6 +200,102 @@ export default async function SettingsPage() {
             <button className="btn btn-primary">Save Preferences</button>
           </div>
         </div>
+
+        {canViewOdSla && (
+          <div className="card">
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-6)" }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "8px", backgroundColor: "rgba(25, 135, 84, 0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Bell size={20} color="#198754" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "4px" }}>OD Approval SLA</h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
+                  Control how long each approval tier gets before reminders and upward escalation begin.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--space-4)", marginBottom: "var(--space-5)" }}>
+              <div style={{ padding: "16px", borderRadius: "12px", background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>
+                <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "6px" }}>Active SLA</div>
+                <div style={{ fontSize: "1.8rem", fontWeight: 700 }}>{activeOdSlaHours}h</div>
+              </div>
+              <div style={{ padding: "16px", borderRadius: "12px", background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>
+                <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "6px" }}>Reminder Pattern</div>
+                <div style={{ fontWeight: 600 }}>6h, 12h, then every SLA window upward</div>
+              </div>
+              <div style={{ padding: "16px", borderRadius: "12px", background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>
+                <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "6px" }}>Last Updated</div>
+                <div style={{ fontWeight: 600 }}>{activeOdSlaUpdatedAt}</div>
+              </div>
+            </div>
+
+            <div style={{ padding: "14px 16px", borderRadius: "10px", background: "rgba(25, 135, 84, 0.08)", border: "1px solid rgba(25, 135, 84, 0.18)", marginBottom: "var(--space-5)" }}>
+              <div style={{ fontWeight: 600, marginBottom: "6px" }}>Escalation behavior</div>
+              <div style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                The current approver is reminded when their SLA expires. If the request is still pending after the next SLA window, the next authority is notified too, and escalation continues upward until the request is resolved.
+              </div>
+            </div>
+
+            {canManageOdSla ? (
+              <form action={updateOdSla} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <label htmlFor="slaHours" style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--text-secondary)" }}>
+                    Default hours per OD approval tier
+                  </label>
+                  <input
+                    id="slaHours"
+                    name="slaHours"
+                    type="number"
+                    min={1}
+                    max={168}
+                    step={1}
+                    defaultValue={activeOdSlaHours}
+                    style={{ padding: "10px 14px", borderRadius: "8px", border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-primary)", width: "100%", boxSizing: "border-box", maxWidth: "220px" }}
+                  />
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    Recommended for launch: 6 hours. Allowed range: 1 to 168 hours.
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <button type="submit" className="btn btn-primary">
+                    Save OD SLA
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                Management Corporation can update this SLA. Your dashboard and escalation queue will automatically follow the active timing policy.
+              </div>
+            )}
+          </div>
+        )}
+
+        {["dean", "hod", "placement_officer", "principal", "mcr", "management_corporation"].includes(role) && (
+          <div className="card">
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-5)" }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "8px", backgroundColor: "rgba(220, 38, 38, 0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Shield size={20} color="#dc2626" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "4px" }}>Hierarchy Audit</h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
+                  Detect invalid student scope, broken staff mappings, and duplicate hierarchy rows.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
+              <Link href="/settings/hierarchy-audit" className="btn btn-primary" style={{ textDecoration: "none" }}>
+                Open Audit Page
+              </Link>
+              <Link href="/settings/hierarchy" className="btn btn-outline" style={{ textDecoration: "none" }}>
+                Open Hierarchy Settings
+              </Link>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

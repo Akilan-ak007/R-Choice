@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GraduationCap, Award, CheckSquare, Square, Search, Mail, Download, Eye, X } from "lucide-react";
+import { GraduationCap, Award, CheckSquare, Square, Search, Mail, Download, Eye, Filter } from "lucide-react";
 import Link from "next/link";
 
 type StudentRow = {
@@ -30,9 +30,28 @@ type StudentRow = {
 
 
 
-export default function StudentsClient({ initialStudents, queryParam }: { initialStudents: StudentRow[], queryParam: string }) {
+export default function StudentsClient({ 
+  initialStudents, 
+  queryParam,
+  activeFilters,
+  filtersRequired = false,
+  role,
+}: { 
+  initialStudents: StudentRow[], 
+  queryParam: string,
+  activeFilters: {
+    school: string;
+    department: string;
+    course: string;
+    year: string;
+    section: string;
+  };
+  filtersRequired?: boolean;
+  role: string;
+}) {
   const [students] = useState<StudentRow[]>(initialStudents);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const hideSchoolDepartmentFilters = role === "placement_coordinator" || role === "hod";
 
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
@@ -80,12 +99,15 @@ export default function StudentsClient({ initialStudents, queryParam }: { initia
 
   return (
     <div className="animate-fade-in">
-      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-4)" }}>
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "end", flexWrap: "wrap", gap: "var(--space-4)" }}>
         <div>
           <h1>Student Directory</h1>
-          <p>Comprehensive list of all registered students and their academic profiles.</p>
+          <p>Find students by class, school, department, and year with a cleaner, role-aware workflow.</p>
         </div>
-        <form method="GET" style={{ display: "flex", gap: "var(--space-2)" }}>
+        <form method="GET" className="toolbar-card" style={{ minWidth: "min(100%, 360px)" }}>
+          <div style={{ fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--text-secondary)" }}>
+            Quick search
+          </div>
           <div style={{ position: "relative" }}>
             <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)" }} />
             <input 
@@ -101,7 +123,36 @@ export default function StudentsClient({ initialStudents, queryParam }: { initia
         </form>
       </div>
 
-      {/* Bulk Actions Toolbar (Animated) */}
+      <form method="GET" className="toolbar-card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-2)" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: "1rem" }}>Filter Students</h2>
+            <p style={{ margin: "4px 0 0 0", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+              Choose class details first. This keeps the list accurate and avoids showing irrelevant students.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+            <button type="submit" className="btn btn-primary">Apply Filters</button>
+            <Link href="/students" className="btn btn-outline" style={{ textDecoration: "none" }}>
+              Reset
+            </Link>
+          </div>
+        </div>
+        <div className="filter-grid">
+          <input type="search" name="q" placeholder="Name or email" defaultValue={queryParam} className="input-field" />
+          {!hideSchoolDepartmentFilters ? <input type="text" name="school" placeholder="School" defaultValue={activeFilters.school} className="input-field" /> : null}
+          {!hideSchoolDepartmentFilters ? <input type="text" name="department" placeholder="Department" defaultValue={activeFilters.department} className="input-field" /> : null}
+          <input type="text" name="course" placeholder="Course" defaultValue={activeFilters.course} className="input-field" />
+          <select name="year" defaultValue={activeFilters.year} className="input-field">
+            <option value="">All Years</option>
+            {[1, 2, 3, 4, 5].map((year) => (
+              <option key={year} value={year}>Year {year}</option>
+            ))}
+          </select>
+          <input type="text" name="section" placeholder="Section" defaultValue={activeFilters.section} className="input-field" />
+        </div>
+      </form>
+
       <AnimatePresence>
         {selectedIds.size > 0 && (
           <motion.div 
@@ -123,7 +174,7 @@ export default function StudentsClient({ initialStudents, queryParam }: { initia
             }}
           >
             <div style={{ fontWeight: "bold", color: "var(--color-primary)" }}>
-              {selectedIds.size} students selected
+              {selectedIds.size} student{selectedIds.size === 1 ? "" : "s"} selected
             </div>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <button onClick={exportCSV} className="btn btn-primary" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px" }}>
@@ -137,9 +188,11 @@ export default function StudentsClient({ initialStudents, queryParam }: { initia
         )}
       </AnimatePresence>
 
-      {/* Export All (always visible) */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-3)" }}>
-        <button onClick={exportCSV} className="btn btn-outline" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", fontSize: "0.875rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
+        <div style={{ color: "var(--text-secondary)", fontSize: "0.88rem" }}>
+          {students.length} visible record{students.length === 1 ? "" : "s"}
+        </div>
+        <button onClick={exportCSV} className="btn btn-outline" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", fontSize: "0.875rem", opacity: students.length === 0 ? 0.5 : 1, pointerEvents: students.length === 0 ? "none" : "auto" }}>
           <Download size={16} /> Export CSV
         </button>
       </div>
@@ -160,10 +213,25 @@ export default function StudentsClient({ initialStudents, queryParam }: { initia
               </tr>
             </thead>
             <tbody>
-              {students.length === 0 ? (
+              {filtersRequired ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--text-secondary)" }}>
-                    No students found.
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-4)" }}>
+                      <Filter size={48} color="var(--text-muted)" />
+                      <div style={{ maxWidth: "400px" }}>
+                        <h3 style={{ margin: "0 0 8px 0", color: "var(--text-primary)" }}>Please Apply Filters</h3>
+                        <p style={{ margin: 0, fontSize: "0.875rem" }}>
+                          As an administrator, loading the entire student directory may degrade performance. 
+                          Please search by name/email or use filters to narrow by academic scope before loading records.
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : students.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--text-secondary)" }}>
+                    No students match the current class, department, or search filters.
                   </td>
                 </tr>
               ) : (
@@ -209,12 +277,16 @@ export default function StudentsClient({ initialStudents, queryParam }: { initia
                             <GraduationCap size={14} />
                             {student.department || "Unassigned"}
                           </div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "8px" }}>
+                            {student.school || "No school"} {student.course ? `• ${student.course}` : ""}
+                          </div>
                         </td>
                         <td style={{ padding: "var(--space-4)", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-                          <div style={{ display: "flex", gap: "16px" }}>
+                          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
                             <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                               <Award size={14} /> Year {student.year || "-"}
                             </span>
+                            <span>Section {student.section || "-"}</span>
                           </div>
                         </td>
                         <td style={{ padding: "var(--space-4)" }}>
@@ -230,7 +302,7 @@ export default function StudentsClient({ initialStudents, queryParam }: { initia
                             title="View student details"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <Eye size={16} /> View
+                            <Eye size={16} /> View Student
                           </Link>
                         </td>
                       </motion.tr>

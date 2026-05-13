@@ -101,6 +101,7 @@ export async function getFilteredRequestsForStaff(userId: string, role: string, 
   const reqs = await db
     .select({
       id: internshipRequests.id,
+      studentId: internshipRequests.studentId,
       role: internshipRequests.role,
       companyName: internshipRequests.companyName,
       applicationType: internshipRequests.applicationType,
@@ -108,6 +109,8 @@ export async function getFilteredRequestsForStaff(userId: string, role: string, 
       submittedAt: internshipRequests.submittedAt,
       updatedAt: internshipRequests.updatedAt,
       currentTier: internshipRequests.currentTier,
+      currentTierEnteredAt: internshipRequests.currentTierEnteredAt,
+      currentTierSlaHours: internshipRequests.currentTierSlaHours,
       studentName: users.firstName,
     })
     .from(internshipRequests)

@@ -7,11 +7,47 @@ import { CheckCircle, XCircle, Loader2, X, MessageSquare, Eye, Building, Calenda
 import { toast } from "sonner";
 
 type RequestDetails = {
-  request?: { applicationType?: string | null; status?: string | null; submittedAt?: string | Date | null; role?: string | null; companyName?: string | null };
+  request?: {
+    applicationType?: string | null;
+    status?: string | null;
+    submittedAt?: string | Date | null;
+    role?: string | null;
+    companyName?: string | null;
+    companyAddress?: string | null;
+    startDate?: string | Date | null;
+    endDate?: string | Date | null;
+    stipend?: string | null;
+    workMode?: string | null;
+    offerLetterUrl?: string | null;
+  };
   jobDetails?: Record<string, unknown> | null;
   companyDetails?: Record<string, unknown> | null;
-  student?: { user?: { firstName?: string | null; lastName?: string | null }; profile?: { department?: string | null; year?: number | null; section?: string | null; cgpa?: string | null } };
-  externalDetails?: { stipend?: unknown; hrName?: unknown; hrContact?: unknown; offerLetterUrl?: unknown } | null;
+  student?: {
+    user?: { firstName?: string | null; lastName?: string | null; email?: string | null; phone?: string | null };
+    profile?: {
+      department?: string | null;
+      year?: number | null;
+      section?: string | null;
+      cgpa?: string | null;
+      school?: string | null;
+      course?: string | null;
+      program?: string | null;
+      programType?: string | null;
+      registerNo?: string | null;
+      resumeUrl?: string | null;
+      batchStartYear?: number | null;
+      batchEndYear?: number | null;
+    }
+  };
+  externalDetails?: {
+    stipend?: unknown;
+    hrName?: unknown;
+    hrEmail?: unknown;
+    hrPhone?: unknown;
+    parentConsentUrl?: unknown;
+    companyIdProofUrl?: unknown;
+    companyWebsite?: unknown;
+  } | null;
 };
 
 export default function ApprovalActions({ requestId }: { requestId: string }) {
@@ -273,9 +309,19 @@ export default function ApprovalActions({ requestId }: { requestId: string }) {
                   <div style={{ background: "var(--bg-elevated)", padding: "16px", borderRadius: "8px" }}>
                     <h3 style={{ fontSize: "0.875rem", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}><GraduationCap size={16} /> Student </h3>
                       <div style={{ fontWeight: 600, fontSize: "1.125rem" }}>{infoData.student?.user?.firstName} {infoData.student?.user?.lastName}</div>
-                      <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginTop: "4px" }}>{infoData.student?.profile?.department} (Yr {infoData.student?.profile?.year}, Sec {infoData.student?.profile?.section})</div>
+                      <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginTop: "4px" }}>
+                        {infoData.student?.profile?.department} (Yr {infoData.student?.profile?.year}, Sec {infoData.student?.profile?.section})
+                      </div>
                     <div style={{ fontSize: "0.875rem", marginTop: "8px", display: "flex", justifyContent: "space-between" }}>
                         <span style={{ color: "var(--text-secondary)" }}>CGPA:</span> <span style={{ fontWeight: 600 }}>{infoData.student?.profile?.cgpa || "N/A"}</span>
+                    </div>
+                    <div style={{ fontSize: "0.875rem", marginTop: "8px", display: "grid", gap: "6px" }}>
+                      <div><span style={{ color: "var(--text-secondary)" }}>Register No:</span> <span style={{ fontWeight: 600 }}>{infoData.student?.profile?.registerNo || "N/A"}</span></div>
+                      <div><span style={{ color: "var(--text-secondary)" }}>School:</span> <span style={{ fontWeight: 600 }}>{infoData.student?.profile?.school || "N/A"}</span></div>
+                      <div><span style={{ color: "var(--text-secondary)" }}>Class:</span> <span style={{ fontWeight: 600 }}>{infoData.student?.profile?.course || "N/A"}</span></div>
+                      <div><span style={{ color: "var(--text-secondary)" }}>Program:</span> <span style={{ fontWeight: 600 }}>{infoData.student?.profile?.programType || infoData.student?.profile?.program || "N/A"}</span></div>
+                      <div><span style={{ color: "var(--text-secondary)" }}>Email:</span> <span style={{ fontWeight: 600 }}>{infoData.student?.user?.email || "N/A"}</span></div>
+                      <div><span style={{ color: "var(--text-secondary)" }}>Phone:</span> <span style={{ fontWeight: 600 }}>{infoData.student?.user?.phone || "N/A"}</span></div>
                     </div>
                   </div>
 
@@ -283,29 +329,40 @@ export default function ApprovalActions({ requestId }: { requestId: string }) {
                     <h3 style={{ fontSize: "0.875rem", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}><Building size={16} /> Internship/Company</h3>
                     <div style={{ fontWeight: 600, fontSize: "1.125rem" }}>{infoData.request?.role || "Intern"}</div>
                     <div style={{ fontSize: "0.875rem", color: "var(--primary-color)", fontWeight: 500, marginTop: "4px" }}>{infoData.request?.companyName || "N/A"}</div>
-                    {infoData.externalDetails && (
-                      <div style={{ fontSize: "0.875rem", marginTop: "8px" }}>
-                         <span style={{ color: "var(--text-secondary)" }}>Stipend:</span> <span style={{ fontWeight: 500 }}>{String(infoData.externalDetails?.stipend ?? "Not specified")}</span>
-                      </div>
-                    )}
+                    <div style={{ fontSize: "0.875rem", marginTop: "8px", display: "grid", gap: "6px" }}>
+                      <div><span style={{ color: "var(--text-secondary)" }}>Company address:</span> <span style={{ fontWeight: 500 }}>{infoData.request?.companyAddress || "N/A"}</span></div>
+                      <div><span style={{ color: "var(--text-secondary)" }}>Internship dates:</span> <span style={{ fontWeight: 500 }}>{infoData.request?.startDate ? new Date(infoData.request.startDate).toLocaleDateString("en-IN") : "N/A"} to {infoData.request?.endDate ? new Date(infoData.request.endDate).toLocaleDateString("en-IN") : "N/A"}</span></div>
+                      <div><span style={{ color: "var(--text-secondary)" }}>Work mode:</span> <span style={{ fontWeight: 500 }}>{infoData.request?.workMode || "N/A"}</span></div>
+                      <div><span style={{ color: "var(--text-secondary)" }}>Stipend:</span> <span style={{ fontWeight: 500 }}>{infoData.request?.stipend || "Not specified"}</span></div>
+                    </div>
                   </div>
                 </div>
 
-                {infoData.externalDetails && (
-                   <div style={{ background: "var(--bg-elevated)", padding: "16px", borderRadius: "8px", marginBottom: "24px" }}>
-                     <h3 style={{ fontSize: "0.875rem", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}><Calendar size={16} /> Logistics & Contacts</h3>
-                     <div className="logistics-grid" style={{ fontSize: "0.875rem" }}>
-                       <div><span style={{ color: "var(--text-secondary)" }}>HR Name:</span> <span style={{ fontWeight: 500 }}>{String(infoData.externalDetails.hrName ?? "N/A")}</span></div>
-                       <div><span style={{ color: "var(--text-secondary)" }}>HR Contact:</span> <span style={{ fontWeight: 500 }}>{String(infoData.externalDetails.hrContact ?? "N/A")}</span></div>
-
-                       {typeof infoData.externalDetails.offerLetterUrl === "string" && (
-                         <div style={{ gridColumn: "1 / -1", marginTop: "8px" }}>
-                           <a href={infoData.externalDetails.offerLetterUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", padding: "6px 12px", background: "var(--primary-color)", color: "white", textDecoration: "none", borderRadius: "4px", fontWeight: 600 }}>Review Offer Letter</a>
-                         </div>
-                       )}
-                     </div>
-                   </div>
-                )}
+                <div style={{ background: "var(--bg-elevated)", padding: "16px", borderRadius: "8px", marginBottom: "24px" }}>
+                  <h3 style={{ fontSize: "0.875rem", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}><Calendar size={16} /> Full Submission Details</h3>
+                  <div className="logistics-grid" style={{ fontSize: "0.875rem" }}>
+                    <div><span style={{ color: "var(--text-secondary)" }}>Submitted on:</span> <span style={{ fontWeight: 500 }}>{infoData.request?.submittedAt ? new Date(infoData.request.submittedAt).toLocaleString("en-IN") : "N/A"}</span></div>
+                    <div><span style={{ color: "var(--text-secondary)" }}>Application type:</span> <span style={{ fontWeight: 500 }}>{infoData.request?.applicationType || "N/A"}</span></div>
+                    <div><span style={{ color: "var(--text-secondary)" }}>HR Name:</span> <span style={{ fontWeight: 500 }}>{String(infoData.externalDetails?.hrName ?? "N/A")}</span></div>
+                    <div><span style={{ color: "var(--text-secondary)" }}>HR Email:</span> <span style={{ fontWeight: 500 }}>{String(infoData.externalDetails?.hrEmail ?? "N/A")}</span></div>
+                    <div><span style={{ color: "var(--text-secondary)" }}>HR Phone:</span> <span style={{ fontWeight: 500 }}>{String(infoData.externalDetails?.hrPhone ?? "N/A")}</span></div>
+                    <div><span style={{ color: "var(--text-secondary)" }}>Company website:</span> <span style={{ fontWeight: 500 }}>{String(infoData.externalDetails?.companyWebsite ?? "N/A")}</span></div>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                    {infoData.request?.offerLetterUrl ? (
+                      <a href={infoData.request.offerLetterUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", padding: "6px 12px", background: "var(--primary-color)", color: "white", textDecoration: "none", borderRadius: "4px", fontWeight: 600 }}>Offer Letter</a>
+                    ) : null}
+                    {typeof infoData.externalDetails?.parentConsentUrl === "string" ? (
+                      <a href={infoData.externalDetails.parentConsentUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", padding: "6px 12px", background: "var(--bg-hover)", color: "var(--text-primary)", textDecoration: "none", borderRadius: "4px", fontWeight: 600 }}>Parent Consent</a>
+                    ) : null}
+                    {typeof infoData.externalDetails?.companyIdProofUrl === "string" ? (
+                      <a href={infoData.externalDetails.companyIdProofUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", padding: "6px 12px", background: "var(--bg-hover)", color: "var(--text-primary)", textDecoration: "none", borderRadius: "4px", fontWeight: 600 }}>Company Proof</a>
+                    ) : null}
+                    {infoData.student?.profile?.resumeUrl ? (
+                      <a href={infoData.student.profile.resumeUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", padding: "6px 12px", background: "var(--bg-hover)", color: "var(--text-primary)", textDecoration: "none", borderRadius: "4px", fontWeight: 600 }}>Student Resume</a>
+                    ) : null}
+                  </div>
+                </div>
                 
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
                    <button onClick={() => { setShowInfoModal(false); openModal("reject"); }} className="btn btn-outline" style={{ color: "#ef4444", borderColor: "#ef4444" }}>Reject Request</button>

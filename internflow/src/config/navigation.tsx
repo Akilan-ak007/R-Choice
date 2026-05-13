@@ -14,6 +14,7 @@ import {
   CalendarDays,
   Trophy,
   Download,
+  Mail,
 } from "lucide-react";
 
 export type NavItem = {
@@ -50,9 +51,9 @@ export function getNavSections(role: string): NavSection[] {
           { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} /> },
         ]},
         { label: "Students", items: [
-          { label: "All Students", href: "/students", icon: <GraduationCap size={20} /> },
           { label: "Applied Students", href: "/students/applied", icon: <Users size={20} /> },
           { label: "Shortlisted", href: "/students/shortlisted", icon: <Trophy size={20} /> },
+          { label: "Manage Students", href: "/users?role=student", icon: <Users size={20} /> },
         ]},
         { label: "Opportunities", items: [
           { label: "Current Openings", href: "/jobs", icon: <Briefcase size={20} /> },
@@ -69,10 +70,10 @@ export function getNavSections(role: string): NavSection[] {
           { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} /> },
         ]},
         { label: "Students", items: [
-          { label: "All Students", href: "/students", icon: <GraduationCap size={20} /> },
+          { label: "Student Directory", href: "/students", icon: <GraduationCap size={20} /> },
           { label: "Applied Students", href: "/students/applied", icon: <Users size={20} /> },
           { label: "Shortlisted", href: "/students/shortlisted", icon: <Trophy size={20} /> },
-          { label: "Manage Students", href: "/users/create", icon: <Users size={20} /> },
+          { label: "Manage Students", href: "/users?role=student", icon: <Users size={20} /> },
         ]},
         { label: "Internships", items: [
           { label: "Current Openings", href: "/jobs", icon: <Briefcase size={20} /> },
@@ -90,9 +91,10 @@ export function getNavSections(role: string): NavSection[] {
           { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} /> },
         ]},
         { label: "Department", items: [
-          { label: "All Students", href: "/students", icon: <GraduationCap size={20} /> },
+          { label: "Student Directory", href: "/students", icon: <GraduationCap size={20} /> },
           { label: "Applied Students", href: "/students/applied", icon: <Users size={20} /> },
           { label: "Shortlisted", href: "/students/shortlisted", icon: <Trophy size={20} /> },
+          { label: "Manage Students", href: "/users", icon: <Users size={20} /> },
           { label: "Hierarchy Manager", href: "/settings/hierarchy", icon: <GitBranch size={20} /> },
         ]},
         { label: "Opportunities", items: [
@@ -115,6 +117,7 @@ export function getNavSections(role: string): NavSection[] {
         { label: "Manage", items: [
           { label: "All Students", href: "/students", icon: <GraduationCap size={20} /> },
           { label: "Shortlisted", href: "/students/shortlisted", icon: <Trophy size={20} /> },
+          { label: "Manage Students", href: "/users", icon: <Users size={20} /> },
           { label: "Companies", href: "/companies", icon: <Building2 size={20} /> },
           { label: "User Accounts", href: "/users", icon: <Users size={20} /> },
         ]},
@@ -134,7 +137,7 @@ export function getNavSections(role: string): NavSection[] {
         { label: "Main", items: [
           { label: "Dashboard", href: "/dashboard/admin", icon: <LayoutDashboard size={20} /> },
           { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} /> },
-          { label: "Job Approvals", href: "/approvals/jobs", icon: <ClipboardCheck size={20} /> },
+          { label: "Selected Queue", href: "/approvals/results", icon: <ClipboardCheck size={20} /> },
           { label: "Reports", href: "/reports/admin", icon: <FileText size={20} /> },
           { label: "Analytics", href: "/analytics", icon: <BarChart3 size={20} /> },
         ]},
@@ -143,14 +146,12 @@ export function getNavSections(role: string): NavSection[] {
           { label: "Shortlisted", href: "/students/shortlisted", icon: <Trophy size={20} /> },
           { label: "User Accounts", href: "/users", icon: <Users size={20} /> },
           { label: "Companies", href: "/companies", icon: <Building2 size={20} /> },
-          { label: "Registration Review", href: "/companies/review", icon: <ClipboardCheck size={20} /> },
         ]},
         { label: "Opportunities", items: [
           { label: "Job Postings", href: "/jobs", icon: <Briefcase size={20} /> },
           { label: "Post a Job", href: "/jobs/create", icon: <FileText size={20} /> },
         ]},
         { label: "Tools", items: [
-          { label: "Hierarchy Manager", href: "/settings/hierarchy", icon: <GitBranch size={20} /> },
           { label: "Export Data", href: "/export", icon: <Download size={20} /> },
           { label: "Settings", href: "/settings", icon: <Settings size={20} /> },
         ]},
@@ -198,17 +199,14 @@ export function getNavSections(role: string): NavSection[] {
       return [
         { label: "Main", items: [
           { label: "Dashboard", href: "/dashboard/admin", icon: <LayoutDashboard size={20} /> },
-          { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={20} /> },
           { label: "Job Approvals", href: "/approvals/jobs", icon: <ClipboardCheck size={20} /> },
-          { label: "Reports", href: "/reports/admin", icon: <FileText size={20} /> },
           { label: "Analytics", href: "/analytics", icon: <BarChart3 size={20} /> },
         ]},
         { label: "Manage", items: [
-          { label: "All Students", href: "/students", icon: <GraduationCap size={20} /> },
-          { label: "Shortlisted", href: "/students/shortlisted", icon: <Trophy size={20} /> },
           { label: "User Accounts", href: "/users", icon: <Users size={20} /> },
           { label: "Companies", href: "/companies", icon: <Building2 size={20} /> },
           { label: "Registration Review", href: "/companies/review", icon: <ClipboardCheck size={20} /> },
+          { label: "Registration Links", href: "/companies/invitations", icon: <Mail size={20} /> },
         ]},
         { label: "Opportunities", items: [
           { label: "Job Postings", href: "/jobs", icon: <Briefcase size={20} /> },
@@ -247,6 +245,13 @@ export function getMobileNavItems(role: string): NavItem[] {
         { label: "More", href: "/settings", icon: <Settings size={22} /> },
       ];
     case "tutor":
+      return [
+        { label: "Home", href: "/dashboard/staff", icon: <LayoutDashboard size={22} /> },
+        { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={22} /> },
+        { label: "Manage", href: "/users?role=student", icon: <Users size={22} /> },
+        { label: "Jobs", href: "/jobs", icon: <Briefcase size={22} /> },
+        { label: "More", href: "/settings", icon: <Settings size={22} /> },
+      ];
     case "placement_coordinator":
     case "hod":
       return [
@@ -263,7 +268,7 @@ export function getMobileNavItems(role: string): NavItem[] {
     case "management_corporation":
       return [
         { label: "Home", href: "/dashboard/admin", icon: <LayoutDashboard size={22} /> },
-        { label: "Approvals", href: "/approvals", icon: <ClipboardCheck size={22} /> },
+        { label: "Approvals", href: role === "management_corporation" ? "/approvals/jobs" : "/approvals", icon: <ClipboardCheck size={22} /> },
         { label: "Analytics", href: "/analytics", icon: <BarChart3 size={22} /> },
         { label: "Manage", href: "/users", icon: <Users size={22} /> },
         { label: "More", href: "/settings", icon: <Settings size={22} /> },

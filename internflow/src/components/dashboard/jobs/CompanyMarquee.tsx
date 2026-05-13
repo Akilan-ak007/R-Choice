@@ -1,15 +1,21 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 
 type MarqueeJob = {
   companyName?: string | null;
+  companyId?: string | null;
 };
 
 export function CompanyMarquee({ jobs }: { jobs: MarqueeJob[] }) {
   // Extract unique companies from jobs
   const companies = Array.from(
-    new Set(jobs.map((j) => j.companyName).filter((name): name is string => Boolean(name)))
+    new Map(
+      jobs
+        .filter((job) => job.companyName)
+        .map((job) => [job.companyName as string, { companyName: job.companyName as string, companyId: job.companyId || null }])
+    ).values()
   );
   
   if (companies.length < 3) return null; // Make sure we have enough for a marquee
@@ -31,7 +37,7 @@ export function CompanyMarquee({ jobs }: { jobs: MarqueeJob[] }) {
       </p>
       
       <span style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}>
-        Top companies hiring: {companies.join(", ")}
+        Top companies hiring: {companies.map((company) => company.companyName).join(", ")}
       </span>
       
       <motion.div 
@@ -40,8 +46,9 @@ export function CompanyMarquee({ jobs }: { jobs: MarqueeJob[] }) {
         transition={{ ease: "linear", duration: 15 + companies.length, repeat: Infinity }}
         style={{ display: "flex", gap: "var(--space-8)", width: "max-content", alignItems: "center" }}
       >
-        {marqueeItems.map((c, i) => (
-          <div key={i} style={{ 
+        {marqueeItems.map((company, i) => {
+          const content = (
+            <div style={{ 
             display: "flex", 
             alignItems: "center", 
             gap: "8px", 
@@ -54,11 +61,20 @@ export function CompanyMarquee({ jobs }: { jobs: MarqueeJob[] }) {
             boxShadow: "var(--shadow-sm)"
           }}>
             <div aria-hidden="true" style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--gradient-accent)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "0.75rem" }}>
-              {c.charAt(0)}
+              {company.companyName.charAt(0)}
             </div>
-            {c}
+            {company.companyName}
           </div>
-        ))}
+          );
+
+          return company.companyId ? (
+            <Link key={`${company.companyName}-${i}`} href={`/companies/${company.companyId}`} style={{ textDecoration: "none" }}>
+              {content}
+            </Link>
+          ) : (
+            <div key={`${company.companyName}-${i}`}>{content}</div>
+          );
+        })}
       </motion.div>
     </div>
   );

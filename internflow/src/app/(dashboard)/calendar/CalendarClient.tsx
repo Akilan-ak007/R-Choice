@@ -20,6 +20,8 @@ const EVENT_COLORS: Record<string, { bg: string; text: string; border: string }>
   report_due: { bg: "rgba(59, 130, 246, 0.1)", text: "#3b82f6", border: "#3b82f6" },
   meeting: { bg: "rgba(245, 158, 11, 0.1)", text: "#f59e0b", border: "#f59e0b" },
   interview_round: { bg: "rgba(139, 92, 246, 0.1)", text: "#8b5cf6", border: "#8b5cf6" },
+  selection_round: { bg: "rgba(168, 85, 247, 0.12)", text: "#7c3aed", border: "#7c3aed" },
+  od_raised: { bg: "rgba(14, 165, 233, 0.12)", text: "#0284c7", border: "#0284c7" },
 };
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
@@ -28,6 +30,8 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   report_due: <FileText size={14} />,
   meeting: <Video size={14} />,
   interview_round: <Video size={14} />,
+  selection_round: <Video size={14} />,
+  od_raised: <Briefcase size={14} />,
 };
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];

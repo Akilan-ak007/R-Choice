@@ -1,10 +1,20 @@
 "use server";
 
+import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { calendarEvents, internshipRequests, workReportSchedules } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import {
+  calendarEvents,
+  companyRegistrations,
+  internshipRequests,
+  jobApplicationRoundProgress,
+  jobApplications,
+  jobPostings,
+  selectionProcessRounds,
+  workReportSchedules,
+} from "@/lib/db/schema";
 
 export async function fetchStudentCalendarEvents() {
   const session = await auth();
@@ -13,13 +23,11 @@ export async function fetchStudentCalendarEvents() {
   const userId = session.user.id;
 
   try {
-    // 1. Custom calendar events
     const customEvents = await db
       .select()
       .from(calendarEvents)
       .where(eq(calendarEvents.userId, userId));
 
-    // 2. Internship start/end dates from approved requests
     const approvedRequests = await db
       .select({
         id: internshipRequests.id,
@@ -31,7 +39,30 @@ export async function fetchStudentCalendarEvents() {
       .from(internshipRequests)
       .where(eq(internshipRequests.studentId, userId));
 
-    // 3. Report due dates
+    const candidateRounds = await db
+      .select({
+        roundId: selectionProcessRounds.id,
+        roundName: selectionProcessRounds.roundName,
+        startsAt: selectionProcessRounds.startsAt,
+        endsAt: selectionProcessRounds.endsAt,
+        mode: selectionProcessRounds.mode,
+        meetLink: selectionProcessRounds.meetLink,
+        location: selectionProcessRounds.location,
+        jobTitle: jobPostings.title,
+        companyName: companyRegistrations.companyLegalName,
+      })
+      .from(jobApplicationRoundProgress)
+      .innerJoin(jobApplications, eq(jobApplications.id, jobApplicationRoundProgress.applicationId))
+      .innerJoin(selectionProcessRounds, eq(selectionProcessRounds.id, jobApplicationRoundProgress.roundId))
+      .innerJoin(jobPostings, eq(jobPostings.id, jobApplications.jobId))
+      .leftJoin(companyRegistrations, eq(companyRegistrations.id, jobPostings.companyId))
+      .where(
+        and(
+          eq(jobApplications.studentId, userId),
+          eq(jobApplicationRoundProgress.status, "scheduled")
+        )
+      );
+
     const reportSchedules = await db
       .select({
         id: workReportSchedules.id,
@@ -41,7 +72,6 @@ export async function fetchStudentCalendarEvents() {
       })
       .from(workReportSchedules);
 
-    // Combine all into a unified event array
     const events: {
       id: string;
       title: string;
@@ -53,56 +83,81 @@ export async function fetchStudentCalendarEvents() {
       isAllDay: boolean;
     }[] = [];
 
-    // Custom events
-    for (const e of customEvents) {
+    for (const event of customEvents) {
       events.push({
-        id: e.id,
-        title: e.title,
-        description: e.description || "",
-        eventType: e.eventType,
-        startDate: e.startDate.toISOString(),
-        endDate: e.endDate?.toISOString() || null,
-        meetLink: e.meetLink || null,
-        isAllDay: e.isAllDay || false,
+        id: event.id,
+        title: event.title,
+        description: event.description || "",
+        eventType: event.eventType,
+        startDate: event.startDate.toISOString(),
+        endDate: event.endDate?.toISOString() || null,
+        meetLink: event.meetLink || null,
+        isAllDay: event.isAllDay || false,
       });
     }
 
-    // Internship events
-    for (const r of approvedRequests) {
-      if (r.startDate) {
+    const existingSelectionRoundIds = new Set(
+      customEvents
+        .filter((event) => event.eventType === "selection_round" && event.relatedEntityId)
+        .map((event) => event.relatedEntityId as string)
+    );
+
+    for (const request of approvedRequests) {
+      if (request.startDate) {
         events.push({
-          id: `intern-start-${r.id}`,
-          title: `Internship Start: ${r.companyName}`,
-          description: `Role: ${r.role}`,
+          id: `intern-start-${request.id}`,
+          title: `Internship Start: ${request.companyName}`,
+          description: `Role: ${request.role}`,
           eventType: "internship_start",
-          startDate: new Date(r.startDate).toISOString(),
+          startDate: new Date(request.startDate).toISOString(),
           isAllDay: true,
         });
       }
-      if (r.endDate) {
+
+      if (request.endDate) {
         events.push({
-          id: `intern-end-${r.id}`,
-          title: `Internship End: ${r.companyName}`,
-          description: `Role: ${r.role}`,
+          id: `intern-end-${request.id}`,
+          title: `Internship End: ${request.companyName}`,
+          description: `Role: ${request.role}`,
           eventType: "internship_end",
-          startDate: new Date(r.endDate).toISOString(),
+          startDate: new Date(request.endDate).toISOString(),
           isAllDay: true,
         });
       }
     }
 
-    // Report due dates
-    for (const s of reportSchedules) {
-      if (s.nextDueDate) {
+    for (const schedule of reportSchedules) {
+      if (schedule.nextDueDate) {
         events.push({
-          id: `report-${s.id}`,
-          title: `Report Due (${s.frequency})`,
+          id: `report-${schedule.id}`,
+          title: `Report Due (${schedule.frequency})`,
           description: "Submit your internship work report",
           eventType: "report_due",
-          startDate: new Date(s.nextDueDate).toISOString(),
+          startDate: new Date(schedule.nextDueDate).toISOString(),
           isAllDay: true,
         });
       }
+    }
+
+    for (const round of candidateRounds) {
+      if (!round.startsAt || existingSelectionRoundIds.has(round.roundId)) continue;
+
+      const detailParts = [
+        round.companyName || "Company",
+        round.mode ? `Mode: ${round.mode}` : null,
+        round.location ? `Location: ${round.location}` : null,
+      ].filter(Boolean);
+
+      events.push({
+        id: `round-${round.roundId}`,
+        title: `${round.roundName}: ${round.jobTitle}`,
+        description: detailParts.join(" - "),
+        eventType: "selection_round",
+        startDate: round.startsAt.toISOString(),
+        endDate: round.endsAt?.toISOString() || null,
+        meetLink: round.meetLink || null,
+        isAllDay: false,
+      });
     }
 
     return events;

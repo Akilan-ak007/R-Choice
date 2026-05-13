@@ -2,9 +2,22 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { internshipRequests, notifications, approvalLogs, auditLogs, externalInternshipDetails, jobPostings, companyRegistrations, users, studentProfiles } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import {
+  internshipRequests,
+  notifications,
+  approvalLogs,
+  auditLogs,
+  externalInternshipDetails,
+  jobPostings,
+  companyRegistrations,
+  users,
+  studentProfiles,
+  approvalSlaSettings,
+  approvalEscalations,
+} from "@/lib/db/schema";
+import { and, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { captureServerError, captureServerEvent } from "@/lib/observability";
 
 type AppRole = "student" | "tutor" | "placement_coordinator" | "hod" | "dean" | "placement_officer" | "coe" | "principal" | "company" | "alumni";
 
@@ -17,6 +30,16 @@ const TIER_CHAIN: Record<string, { nextStatus: string; nextTier: number }> = {
   "placement_officer:pending_po": { nextStatus: "pending_coe", nextTier: 6 },
   "coe:pending_coe":              { nextStatus: "pending_principal", nextTier: 7 },
 };
+
+async function getCurrentSlaHours() {
+  const [setting] = await db
+    .select({ slaHours: approvalSlaSettings.slaHours })
+    .from(approvalSlaSettings)
+    .where(eq(approvalSlaSettings.scope, "default_od"))
+    .limit(1);
+
+  return setting?.slaHours || 6;
+}
 
 export async function advanceApproval(requestId: string, action: "approve" | "reject", comment?: string) {
   const session = await auth();
@@ -54,8 +77,14 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
           status: "rejected",
           lastReviewedBy: approverId,
           lastReviewedAt: now,
+          currentTierEnteredAt: now,
         })
         .where(eq(internshipRequests.id, requestId));
+
+      await db
+        .update(approvalEscalations)
+        .set({ resolvedAt: now })
+        .where(eq(approvalEscalations.requestId, requestId));
 
       await db.insert(approvalLogs).values({
         requestId,
@@ -84,6 +113,14 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
         linkUrl: `/applications/${request.id}`,
       });
 
+      captureServerEvent("internship_request_rejected", {
+        requestId,
+        studentId: request.studentId,
+        approverId,
+        approverRole: role,
+        tier: request.currentTier || 0,
+      });
+
       revalidatePath("/approvals");
       revalidatePath("/applications");
       return { success: true };
@@ -97,8 +134,14 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
           status: "approved",
           lastReviewedBy: approverId,
           lastReviewedAt: now,
+          currentTierEnteredAt: now,
         })
         .where(eq(internshipRequests.id, requestId));
+
+      await db
+        .update(approvalEscalations)
+        .set({ resolvedAt: now })
+        .where(eq(approvalEscalations.requestId, requestId));
 
       await db.insert(approvalLogs).values({
         requestId,
@@ -127,6 +170,13 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
         linkUrl: `/applications/${request.id}`,
       });
 
+      captureServerEvent("internship_request_fully_approved", {
+        requestId,
+        studentId: request.studentId,
+        approverId,
+        approverRole: role,
+      });
+
       revalidatePath("/approvals");
       revalidatePath("/applications");
       return { success: true };
@@ -140,6 +190,8 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
       return { error: "You cannot approve this request at its current stage." };
     }
 
+    const slaHours = await getCurrentSlaHours();
+
     await db
       .update(internshipRequests)
       .set({
@@ -147,8 +199,22 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
         currentTier: next.nextTier,
         lastReviewedBy: approverId,
         lastReviewedAt: now,
+        currentTierEnteredAt: now,
+        currentTierSlaHours: slaHours,
       })
       .where(eq(internshipRequests.id, requestId));
+
+    // Escalations belong to a specific pending tier. Once the request advances,
+    // any open escalation for the previous tier should no longer appear active.
+    await db
+      .update(approvalEscalations)
+      .set({ resolvedAt: now })
+      .where(
+        and(
+          eq(approvalEscalations.requestId, requestId),
+          ne(approvalEscalations.escalatedFromTier, next.nextTier),
+        ),
+      );
 
     // Log the approval with optional endorsement
     await db.insert(approvalLogs).values({
@@ -178,11 +244,27 @@ export async function advanceApproval(requestId: string, action: "approve" | "re
       linkUrl: `/applications/${request.id}`,
     });
 
+    captureServerEvent("internship_request_advanced", {
+      requestId,
+      studentId: request.studentId,
+      approverId,
+      approverRole: role,
+      fromTier: request.currentTier || 0,
+      toTier: next.nextTier,
+      nextStatus: next.nextStatus,
+    });
+
     revalidatePath("/approvals");
     revalidatePath("/applications");
     return { success: true };
   } catch (error: unknown) {
-    console.error("Approval error:", error);
+    captureServerError(error, {
+      scope: "advanceApproval",
+      requestId,
+      action,
+      actorId: approverId,
+      actorRole: role,
+    });
     return { error: `Failed to process approval: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -197,11 +279,17 @@ export async function getRequestDetails(requestId: string) {
         id: internshipRequests.id,
         role: internshipRequests.role,
         companyName: internshipRequests.companyName,
+        companyAddress: internshipRequests.companyAddress,
         applicationType: internshipRequests.applicationType,
         status: internshipRequests.status,
         submittedAt: internshipRequests.submittedAt,
         studentId: internshipRequests.studentId,
         jobPostingId: internshipRequests.jobPostingId,
+        startDate: internshipRequests.startDate,
+        endDate: internshipRequests.endDate,
+        stipend: internshipRequests.stipend,
+        workMode: internshipRequests.workMode,
+        offerLetterUrl: internshipRequests.offerLetterUrl,
       })
       .from(internshipRequests)
       .where(eq(internshipRequests.id, requestId))
@@ -223,14 +311,27 @@ export async function getRequestDetails(requestId: string) {
        const [jobP] = await db.select().from(jobPostings).where(eq(jobPostings.id, request.jobPostingId)).limit(1);
        if (jobP) {
          jobDetails = jobP;
-         const [comp] = await db.select().from(companyRegistrations).where(eq(companyRegistrations.userId, jobP.postedBy)).limit(1);
+         const [comp] = await db.select().from(companyRegistrations).where(eq(companyRegistrations.id, jobP.companyId!)).limit(1);
          companyDetails = comp || null;
        }
     }
 
     // Fetch the basic student snapshot
-    const [user] = await db.select({ firstName: users.firstName, lastName: users.lastName, email: users.email, avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, request.studentId as string)).limit(1);
-    const [profile] = await db.select({ department: studentProfiles.department, year: studentProfiles.year, section: studentProfiles.section, cgpa: studentProfiles.cgpa }).from(studentProfiles).where(eq(studentProfiles.userId, request.studentId as string)).limit(1);
+    const [user] = await db.select({ firstName: users.firstName, lastName: users.lastName, email: users.email, phone: users.phone, avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, request.studentId as string)).limit(1);
+    const [profile] = await db.select({
+      department: studentProfiles.department,
+      year: studentProfiles.year,
+      section: studentProfiles.section,
+      cgpa: studentProfiles.cgpa,
+      school: studentProfiles.school,
+      course: studentProfiles.course,
+      program: studentProfiles.program,
+      programType: studentProfiles.programType,
+      registerNo: studentProfiles.registerNo,
+      resumeUrl: studentProfiles.resumeUrl,
+      batchStartYear: studentProfiles.batchStartYear,
+      batchEndYear: studentProfiles.batchEndYear,
+    }).from(studentProfiles).where(eq(studentProfiles.userId, request.studentId as string)).limit(1);
 
     return {
       success: true,
@@ -244,7 +345,10 @@ export async function getRequestDetails(requestId: string) {
     }
 
   } catch (err) {
-    console.error("Failed to fetch request details:", err);
+    captureServerError(err, {
+      scope: "getRequestDetails",
+      requestId,
+    });
     return { error: "Failed to fetch request details" };
   }
 }

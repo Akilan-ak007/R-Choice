@@ -5,12 +5,29 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Loader2, Briefcase, Plus, X, HelpCircle, Users, Wrench, ListChecks, Phone } from "lucide-react";
 import Link from "next/link";
 import { createJobPosting } from "@/app/actions/jobs";
-import { toast } from "sonner";
 
-function TagInput({ label, tags, input, setInput, onAdd, onRemove, placeholder }: {
-  label: string; tags: string[]; input: string; setInput: (v: string) => void;
-  onAdd: () => void; onRemove: (i: number) => void; placeholder: string;
-}) {
+type TagInputProps = {
+  label: string;
+  tags: string[];
+  input: string;
+  setInput: (value: string) => void;
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+  placeholder: string;
+};
+
+type SelectionRoundDraft = {
+  roundName: string;
+  roundType: string;
+  startsAt: string;
+  endsAt: string;
+  mode: string;
+  meetLink: string;
+  location: string;
+  description: string;
+};
+
+function TagInput({ label, tags, input, setInput, onAdd, onRemove, placeholder }: TagInputProps) {
   return (
     <div className="input-group" style={{ gridColumn: "1 / -1" }}>
       <label>{label}</label>
@@ -18,8 +35,13 @@ function TagInput({ label, tags, input, setInput, onAdd, onRemove, placeholder }
         <input
           className="input-field"
           value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onAdd(); } }}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onAdd();
+            }
+          }}
           placeholder={placeholder}
           style={{ flex: 1 }}
         />
@@ -30,16 +52,34 @@ function TagInput({ label, tags, input, setInput, onAdd, onRemove, placeholder }
       {tags.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
           {tags.map((tag, i) => (
-            <span key={i} style={{
-              display: "inline-flex", alignItems: "center", gap: "6px",
-              background: "var(--primary-light)", color: "var(--primary-color)",
-              padding: "4px 10px", borderRadius: "16px", fontSize: "0.8125rem", fontWeight: 500,
-            }}>
+            <span
+              key={`${label}-${tag}-${i}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "var(--primary-light)",
+                color: "var(--primary-color)",
+                padding: "4px 10px",
+                borderRadius: "16px",
+                fontSize: "0.8125rem",
+                fontWeight: 500,
+              }}
+            >
               {tag}
-              <button type="button" onClick={() => onRemove(i)} style={{
-                background: "none", border: "none", color: "inherit", cursor: "pointer", padding: 0,
-                display: "flex", alignItems: "center",
-              }}>
+              <button
+                type="button"
+                onClick={() => onRemove(i)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "inherit",
+                  cursor: "pointer",
+                  padding: 0,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
                 <X size={12} />
               </button>
             </span>
@@ -61,15 +101,14 @@ export default function CreateJobPage() {
   const [tools, setTools] = useState<string[]>([]);
   const [perks, setPerks] = useState<string[]>([]);
   const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([]);
-  const [selectionSteps, setSelectionSteps] = useState<string[]>([]);
   const [contacts, setContacts] = useState<{ name: string; role: string; email: string; phone: string }[]>([]);
+  const [selectionRounds, setSelectionRounds] = useState<SelectionRoundDraft[]>([]);
 
   // Tag input helpers
   const [skillInput, setSkillInput] = useState("");
   const [prefSkillInput, setPrefSkillInput] = useState("");
   const [toolInput, setToolInput] = useState("");
   const [perkInput, setPerkInput] = useState("");
-  const [stepInput, setStepInput] = useState("");
 
   function addTag(list: string[], setter: (v: string[]) => void, value: string, inputSetter: (v: string) => void) {
     const trimmed = value.trim();
@@ -81,6 +120,32 @@ export default function CreateJobPage() {
 
   function removeTag(list: string[], setter: (v: string[]) => void, index: number) {
     setter(list.filter((_, i) => i !== index));
+  }
+
+  function updateRound(index: number, field: keyof SelectionRoundDraft, value: string) {
+    setSelectionRounds((prev) => prev.map((round, roundIndex) => (
+      roundIndex === index ? { ...round, [field]: value } : round
+    )));
+  }
+
+  function addRound() {
+    setSelectionRounds((prev) => [
+      ...prev,
+      {
+        roundName: "",
+        roundType: "custom",
+        startsAt: "",
+        endsAt: "",
+        mode: "Online",
+        meetLink: "",
+        location: "",
+        description: "",
+      },
+    ]);
+  }
+
+  function removeRound(index: number) {
+    setSelectionRounds((prev) => prev.filter((_, roundIndex) => roundIndex !== index));
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -95,7 +160,16 @@ export default function CreateJobPage() {
     preferredSkills.forEach(s => formData.append("preferredSkills", s));
     tools.forEach(s => formData.append("tools", s));
     perks.forEach(s => formData.append("perks", s));
-    selectionSteps.forEach(s => formData.append("selectionSteps", s));
+    const normalizedRounds = selectionRounds
+      .map((round) => ({
+        ...round,
+        roundName: round.roundName.trim(),
+        roundType: round.roundType || "custom",
+        mode: round.mode || "Online",
+      }))
+      .filter((round) => round.roundName);
+    normalizedRounds.forEach((round) => formData.append("selectionSteps", round.roundName));
+    formData.set("selectionRoundsJson", JSON.stringify(normalizedRounds));
     formData.set("faq", JSON.stringify(faqs));
     formData.set("contactPersons", JSON.stringify(contacts));
 
@@ -103,10 +177,8 @@ export default function CreateJobPage() {
 
     if (result.error) {
       setError(result.error);
-      toast.error(result.error);
       setIsLoading(false);
     } else {
-      toast.success("Job posted! Pending MCR verification.");
       router.push("/jobs/manage");
       router.refresh();
     }
@@ -134,8 +206,6 @@ export default function CreateJobPage() {
     margin: 0,
   };
 
-
-
   return (
     <div className="animate-fade-in" style={{ maxWidth: "900px", margin: "0 auto" }}>
       <div style={{ marginBottom: "var(--space-4)" }}>
@@ -149,8 +219,8 @@ export default function CreateJobPage() {
           <Briefcase size={24} color="var(--primary-color)" />
         </div>
         <div>
-          <h1>Create New Opportunity</h1>
-          <p>Publish an advanced internship tracking profile to the R-Choice talent pool.</p>
+          <h1>Create New Job Posting</h1>
+          <p>Publish an internship opportunity to the Rathinam talent pool.</p>
         </div>
       </div>
 
@@ -318,11 +388,122 @@ export default function CreateJobPage() {
           <h3 style={sectionHeaderStyle}>
             <ListChecks size={18} color="var(--primary-color)" /> Selection Process
           </h3>
-          <TagInput label="Selection Rounds (in order)" tags={selectionSteps} input={stepInput} setInput={setStepInput}
-            onAdd={() => addTag(selectionSteps, setSelectionSteps, stepInput, setStepInput)}
-            onRemove={(i) => removeTag(selectionSteps, setSelectionSteps, i)}
-            placeholder="e.g. Online Test, Technical Interview, HR Round — press Enter to add"
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {selectionRounds.length === 0 ? (
+              <div style={{ padding: "14px 16px", borderRadius: "10px", background: "var(--bg-secondary)", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+                Rounds are optional. Add round details only if this job needs a structured selection workflow.
+              </div>
+            ) : null}
+            {selectionRounds.map((round, index) => (
+              <div key={`round-${index}`} style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)", borderRadius: "12px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", position: "relative" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>Round {index + 1}</div>
+                  {selectionRounds.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeRound(index)}
+                      style={{ background: "none", border: "none", color: "var(--color-danger)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                    >
+                      <X size={14} /> Remove
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-2" style={{ gap: "var(--space-4)" }}>
+                  <div className="input-group">
+                    <label>Round Name *</label>
+                    <input
+                      className="input-field"
+                      value={round.roundName}
+                      onChange={(e) => updateRound(index, "roundName", e.target.value)}
+                      placeholder="e.g. Online Test"
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label>Round Type</label>
+                    <select
+                      className="input-field"
+                      value={round.roundType}
+                      onChange={(e) => updateRound(index, "roundType", e.target.value)}
+                    >
+                      <option value="custom">Custom</option>
+                      <option value="aptitude_test">Aptitude Test</option>
+                      <option value="coding_test">Coding Test</option>
+                      <option value="technical_interview">Technical Interview</option>
+                      <option value="hr_interview">HR Interview</option>
+                      <option value="group_discussion">Group Discussion</option>
+                    </select>
+                  </div>
+                  <div className="input-group">
+                    <label>Start Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      className="input-field"
+                      value={round.startsAt}
+                      onChange={(e) => updateRound(index, "startsAt", e.target.value)}
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label>End Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      className="input-field"
+                      value={round.endsAt}
+                      onChange={(e) => updateRound(index, "endsAt", e.target.value)}
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label>Mode</label>
+                    <select
+                      className="input-field"
+                      value={round.mode}
+                      onChange={(e) => updateRound(index, "mode", e.target.value)}
+                    >
+                      <option value="Online">Online</option>
+                      <option value="Offline">Offline</option>
+                      <option value="Hybrid">Hybrid</option>
+                    </select>
+                  </div>
+                  <div className="input-group">
+                    <label>Location / Venue</label>
+                    <input
+                      className="input-field"
+                      value={round.location}
+                      onChange={(e) => updateRound(index, "location", e.target.value)}
+                      placeholder="e.g. Main Campus, Block A"
+                    />
+                  </div>
+                  <div className="input-group" style={{ gridColumn: "1 / -1" }}>
+                    <label>Meeting Link</label>
+                    <input
+                      className="input-field"
+                      value={round.meetLink}
+                      onChange={(e) => updateRound(index, "meetLink", e.target.value)}
+                      placeholder="https://meet.google.com/..."
+                    />
+                  </div>
+                  <div className="input-group" style={{ gridColumn: "1 / -1" }}>
+                    <label>Round Notes</label>
+                    <textarea
+                      className="input-field"
+                      value={round.description}
+                      onChange={(e) => updateRound(index, "description", e.target.value)}
+                      placeholder="Any instructions or expectations for this round..."
+                      style={{ minHeight: "70px", resize: "vertical" }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={addRound}
+            className="btn btn-outline"
+            style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: "6px" }}
+          >
+            <Plus size={14} /> Add Round
+          </button>
           <div className="input-group">
             <label>Additional Selection Details</label>
             <textarea name="selectionProcess" className="input-field" placeholder="Any extra details about the selection process..." style={{ minHeight: "60px", resize: "vertical" }} />

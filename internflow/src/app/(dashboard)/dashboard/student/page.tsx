@@ -1,35 +1,71 @@
-import styles from "./student.module.css";
+import Link from "next/link";
+import { asc, eq } from "drizzle-orm";
+import {
+  Briefcase,
+  CheckCircle2,
+  Clock,
+  FileEdit,
+  FileText,
+  Hand,
+  Milestone,
+  ShieldCheck,
+  Star,
+} from "lucide-react";
+
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { studentProfiles, internshipRequests, jobApplications, jobPostings, companyRegistrations, users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { Hand, FileEdit, FileText, Briefcase, Star, ShieldCheck, Clock } from "lucide-react";
-import Link from "next/link";
-import VerificationBannerClient from "./VerificationBannerClient";
+import {
+  companyRegistrations,
+  internshipRequests,
+  jobApplicationRoundProgress,
+  jobApplications,
+  jobPostings,
+  selectionProcessRounds,
+  studentProfiles,
+  users,
+} from "@/lib/db/schema";
+
 import ApprovedRequestsClient from "./ApprovedRequestsClient";
+import styles from "./student.module.css";
+import VerificationBannerClient from "./VerificationBannerClient";
+
+type SelectionTimelineItem = {
+  appId: string;
+  jobId: string;
+  companyId: string | null;
+  jobTitle: string;
+  companyName: string | null;
+  applicationStatus: string | null;
+  currentRound: {
+    roundNumber: number;
+    roundName: string;
+    startsAt: Date | null;
+  } | null;
+  clearedRounds: Array<{
+    roundNumber: number;
+    roundName: string;
+    reviewedAt: Date | null;
+  }>;
+};
 
 export default async function StudentDashboard() {
   const session = await auth();
   const userId = session?.user?.id;
 
-  // Fetch real data
   let profileScore = 0;
   let applicationCount = 0;
   let approvedCount = 0;
   let pendingCount = 0;
-  
-  // New verification flow
-  let pendingVerificationApps: { appId: string; jobTitle: string; companyName: string | null; verificationCode: string | null }[] = [];
-  let shortlistedApps: { appId: string; jobTitle: string; companyName: string | null; status: string | null }[] = [];
+  let pendingVerificationApps: { appId: string; jobId: string; companyId: string | null; jobTitle: string; companyName: string | null }[] = [];
+  let shortlistedApps: { appId: string; jobId: string; companyId: string | null; jobTitle: string; companyName: string | null; status: string | null }[] = [];
+  let selectionTimeline: SelectionTimelineItem[] = [];
   let approvedRequestsData: { id: string; status: string | null; companyName: string; role: string; startDate: string; endDate: string; approvedAt: Date | null }[] = [];
   let studentFullName = "Student";
 
   if (userId) {
-    // Current user name
     const [user] = await db.select({ first: users.firstName, last: users.lastName }).from(users).where(eq(users.id, userId)).limit(1);
     if (user) studentFullName = `${user.first} ${user.last}`;
 
-    // Profile completion
     const [profile] = await db
       .select({ score: studentProfiles.profileCompletionScore })
       .from(studentProfiles)
@@ -37,39 +73,32 @@ export default async function StudentDashboard() {
       .limit(1);
     profileScore = profile?.score ?? 0;
 
-    // OD Application counts
     const allApps = await db
-      .select({ 
-         id: internshipRequests.id,
-         status: internshipRequests.status,
-         companyName: internshipRequests.companyName,
-         role: internshipRequests.role,
-         startDate: internshipRequests.startDate,
-         endDate: internshipRequests.endDate,
-         approvedAt: internshipRequests.approvedAt
+      .select({
+        id: internshipRequests.id,
+        status: internshipRequests.status,
+        companyName: internshipRequests.companyName,
+        role: internshipRequests.role,
+        startDate: internshipRequests.startDate,
+        endDate: internshipRequests.endDate,
+        approvedAt: internshipRequests.approvedAt,
       })
       .from(internshipRequests)
       .where(eq(internshipRequests.studentId, userId));
 
     applicationCount = allApps.length;
-    
-    // Filter fully approved requests
-    const approvedEntries = allApps.filter((a) => a.status === "approved");
+    const approvedEntries = allApps.filter((app) => app.status === "approved");
     approvedCount = approvedEntries.length;
     approvedRequestsData = approvedEntries;
-    
-    pendingCount = allApps.filter(
-      (a) => a.status !== "approved" && a.status !== "rejected" && a.status !== "draft"
-    ).length;
+    pendingCount = allApps.filter((app) => app.status !== "approved" && app.status !== "rejected" && app.status !== "draft").length;
 
-    // Fetch ALL job applications for this student (shortlisted + selected)
     const myJobApps = await db
       .select({
         appId: jobApplications.id,
+        jobId: jobPostings.id,
         status: jobApplications.status,
-        verificationCode: jobApplications.verificationCode,
-        isVerified: jobApplications.isVerified,
         jobTitle: jobPostings.title,
+        companyId: companyRegistrations.id,
         companyName: companyRegistrations.companyLegalName,
       })
       .from(jobApplications)
@@ -77,18 +106,71 @@ export default async function StudentDashboard() {
       .leftJoin(companyRegistrations, eq(jobPostings.companyId, companyRegistrations.id))
       .where(eq(jobApplications.studentId, userId));
 
-    // Selected but unverified — show verification banners
     pendingVerificationApps = myJobApps
-      .filter(a => a.status === "selected" && !a.isVerified)
-      .map(a => ({ appId: a.appId, jobTitle: a.jobTitle, companyName: a.companyName, verificationCode: a.verificationCode }));
+      .filter((app) => app.status === "selected")
+      .map((app) => ({ appId: app.appId, jobId: app.jobId, companyId: app.companyId, jobTitle: app.jobTitle, companyName: app.companyName }));
 
-    // Shortlisted — show for awareness
     shortlistedApps = myJobApps
-      .filter(a => a.status === "shortlisted")
-      .map(a => ({ appId: a.appId, jobTitle: a.jobTitle, companyName: a.companyName, status: a.status }));
+      .filter((app) => app.status === "shortlisted" || app.status === "round_scheduled")
+      .map((app) => ({ appId: app.appId, jobId: app.jobId, companyId: app.companyId, jobTitle: app.jobTitle, companyName: app.companyName, status: app.status }));
+
+    const roundProgressRows = await db
+      .select({
+        appId: jobApplications.id,
+        jobId: jobPostings.id,
+        companyId: companyRegistrations.id,
+        applicationStatus: jobApplications.status,
+        jobTitle: jobPostings.title,
+        companyName: companyRegistrations.companyLegalName,
+        roundNumber: selectionProcessRounds.roundNumber,
+        roundName: selectionProcessRounds.roundName,
+        startsAt: selectionProcessRounds.startsAt,
+        progressStatus: jobApplicationRoundProgress.status,
+        reviewedAt: jobApplicationRoundProgress.reviewedAt,
+      })
+      .from(jobApplicationRoundProgress)
+      .innerJoin(jobApplications, eq(jobApplications.id, jobApplicationRoundProgress.applicationId))
+      .innerJoin(selectionProcessRounds, eq(selectionProcessRounds.id, jobApplicationRoundProgress.roundId))
+      .innerJoin(jobPostings, eq(jobPostings.id, jobApplications.jobId))
+      .leftJoin(companyRegistrations, eq(companyRegistrations.id, jobPostings.companyId))
+      .where(eq(jobApplications.studentId, userId))
+      .orderBy(asc(selectionProcessRounds.roundNumber));
+
+    const timelineMap = new Map<string, SelectionTimelineItem>();
+    for (const row of roundProgressRows) {
+      const existing: SelectionTimelineItem = timelineMap.get(row.appId) || {
+        appId: row.appId,
+        jobId: row.jobId,
+        companyId: row.companyId,
+        jobTitle: row.jobTitle,
+        companyName: row.companyName,
+        applicationStatus: row.applicationStatus,
+        currentRound: null,
+        clearedRounds: [],
+      };
+
+      if (row.progressStatus === "scheduled") {
+        existing.currentRound = {
+          roundNumber: row.roundNumber,
+          roundName: row.roundName,
+          startsAt: row.startsAt,
+        };
+      }
+
+      if (row.progressStatus === "cleared") {
+        existing.clearedRounds.push({
+          roundNumber: row.roundNumber,
+          roundName: row.roundName,
+          reviewedAt: row.reviewedAt,
+        });
+      }
+
+      timelineMap.set(row.appId, existing);
+    }
+
+    selectionTimeline = Array.from(timelineMap.values());
   }
 
-  // Readiness score = profile score for now (V1)
   const readinessScore = Math.min(profileScore + approvedCount * 10, 100);
   const completionPercent = Math.min(profileScore, 100);
 
@@ -99,24 +181,21 @@ export default async function StudentDashboard() {
         <p>Here&apos;s your placement journey at a glance.</p>
       </div>
 
-      {/* Verification Banners for ALL selected-but-unverified apps */}
-      {pendingVerificationApps.map(app => (
-        <VerificationBannerClient 
+      {pendingVerificationApps.map((app) => (
+        <VerificationBannerClient
           key={app.appId}
-          applicationId={app.appId}
           jobTitle={app.jobTitle}
           companyName={app.companyName || "Company"}
         />
       ))}
 
-      {/* My Shortlists Section */}
       {(shortlistedApps.length > 0 || pendingVerificationApps.length > 0) && (
         <div style={{ marginBottom: "var(--space-6)" }}>
           <h2 style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
             <Star size={20} color="#f59e0b" /> My Shortlists
           </h2>
           <div className="grid grid-3" style={{ gap: "var(--space-4)" }}>
-            {shortlistedApps.map(app => (
+            {shortlistedApps.map((app) => (
               <div key={app.appId} className="card" style={{ borderLeft: "4px solid #f59e0b", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div>
                   <p style={{ fontWeight: 600, margin: "0 0 4px 0" }}>{app.companyName || "Company"}</p>
@@ -124,11 +203,23 @@ export default async function StudentDashboard() {
                 </div>
                 <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
                   <Clock size={14} color="#f59e0b" />
-                  <span style={{ fontSize: "0.8rem", color: "#f59e0b", fontWeight: 600 }}>Awaiting final results...</span>
+                  <span style={{ fontSize: "0.8rem", color: "#f59e0b", fontWeight: 600 }}>
+                    {app.status === "round_scheduled" ? "Round scheduled. Check your calendar." : "Awaiting final results..."}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                  <Link href={`/jobs/${app.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    View Job
+                  </Link>
+                  {app.companyId && (
+                    <Link href={`/companies/${app.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                      View Company
+                    </Link>
+                  )}
                 </div>
               </div>
             ))}
-            {pendingVerificationApps.map(app => (
+            {pendingVerificationApps.map((app) => (
               <div key={app.appId} className="card" style={{ borderLeft: "4px solid #6366f1", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div>
                   <p style={{ fontWeight: 600, margin: "0 0 4px 0" }}>{app.companyName || "Company"}</p>
@@ -137,12 +228,20 @@ export default async function StudentDashboard() {
                 <div style={{ marginTop: "12px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
                     <ShieldCheck size={14} color="#6366f1" />
-                    <span style={{ fontSize: "0.8rem", color: "#6366f1", fontWeight: 600 }}>Selected! Verify to start OD</span>
+                    <span style={{ fontSize: "0.8rem", color: "#6366f1", fontWeight: 600 }}>Selected! Submit your documents, then wait for PO to raise OD</span>
                   </div>
-                  {app.verificationCode && (
-                    <div style={{ background: "rgba(99,102,241,0.08)", padding: "8px 12px", borderRadius: "6px", fontFamily: "monospace", fontSize: "1.1rem", fontWeight: 700, letterSpacing: "4px", textAlign: "center", color: "#6366f1" }}>
-                      {app.verificationCode}
-                    </div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                    Open My Applications and submit the offer letter link plus parent consent link. After that, Placement Officer will manually click Raise OD and the tracker will begin.
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                  <Link href={`/jobs/${app.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    View Job
+                  </Link>
+                  {app.companyId && (
+                    <Link href={`/companies/${app.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                      View Company
+                    </Link>
                   )}
                 </div>
               </div>
@@ -151,7 +250,85 @@ export default async function StudentDashboard() {
         </div>
       )}
 
-      {/* Profile Completion Banner */}
+      {selectionTimeline.length > 0 && (
+        <div style={{ marginBottom: "var(--space-6)" }}>
+          <h2 style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Milestone size={20} color="#8b5cf6" /> Selection Rounds
+          </h2>
+          <div style={{ display: "grid", gap: "var(--space-4)" }}>
+            {selectionTimeline.map((item) => (
+              <div key={item.appId} className="card" style={{ padding: "var(--space-5)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: "1rem", marginBottom: "4px" }}>{item.jobTitle}</div>
+                    <div style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>{item.companyName || "Company"}</div>
+                  </div>
+                  <div className={`status-pill ${item.applicationStatus === "selected" ? "status-approved" : "status-pending"}`}>
+                    {item.applicationStatus === "selected" ? "Final Result Published" : item.currentRound ? "Round In Progress" : "In Selection"}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "16px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
+                  {item.currentRound ? (
+                    <div style={{ padding: "14px", borderRadius: "10px", border: "1px solid rgba(139, 92, 246, 0.35)", background: "rgba(139, 92, 246, 0.08)" }}>
+                      <div style={{ fontSize: "0.75rem", color: "#8b5cf6", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
+                        Current Round
+                      </div>
+                      <div style={{ fontWeight: 700, marginBottom: "4px" }}>
+                        Round {item.currentRound.roundNumber}: {item.currentRound.roundName}
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                        {item.currentRound.startsAt ? new Date(item.currentRound.startsAt).toLocaleString("en-IN") : "Scheduled timing will appear in your calendar."}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color)", background: "var(--bg-secondary)" }}>
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
+                        Current State
+                      </div>
+                      <div style={{ fontWeight: 700, marginBottom: "4px" }}>Waiting for company update</div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                        You have no active scheduled round at the moment.
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color)", background: "var(--bg-secondary)" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
+                      Cleared Rounds
+                    </div>
+                    {item.clearedRounds.length === 0 ? (
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>No round has been marked as cleared yet.</div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        {item.clearedRounds.map((round) => (
+                          <div key={`${item.appId}-${round.roundNumber}`} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem" }}>
+                            <CheckCircle2 size={14} color="#22c55e" />
+                            <span>
+                              Round {round.roundNumber}: {round.roundName}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                  <Link href={`/jobs/${item.jobId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    View Job
+                  </Link>
+                  {item.companyId && (
+                    <Link href={`/companies/${item.companyId}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                      View Company
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className={styles.completionBanner}>
         <div className={styles.completionInfo}>
           <h3>Complete Your Profile</h3>
@@ -165,7 +342,6 @@ export default async function StudentDashboard() {
 
       <ApprovedRequestsClient requests={approvedRequestsData} studentName={studentFullName} />
 
-      {/* KPI Cards */}
       <div className="grid grid-3" style={{ marginBottom: "var(--space-6)" }}>
         {[
           { label: "OD Requests", value: String(applicationCount), color: "var(--rathinam-purple)" },
@@ -184,7 +360,6 @@ export default async function StudentDashboard() {
         ))}
       </div>
 
-      {/* Quick Actions — Wired to real routes */}
       <h2 style={{ marginBottom: "var(--space-4)" }}>Quick Actions</h2>
       <div className="grid grid-3">
         <Link href="/profile" style={{ textDecoration: "none", color: "inherit" }}>
@@ -215,4 +390,3 @@ export default async function StudentDashboard() {
     </div>
   );
 }
-

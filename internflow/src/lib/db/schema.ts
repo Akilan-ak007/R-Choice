@@ -51,10 +51,14 @@ export const applicationTypeEnum = pgEnum("application_type", [
 ]);
 
 export const companyStatusEnum = pgEnum("company_status", [
+  "invited",
+  "registration_submitted",
+  "under_review",
   "pending",
   "approved",
   "rejected",
   "info_requested",
+  "suspended",
 ]);
 
 export const jobStatusEnum = pgEnum("job_status", [
@@ -92,6 +96,17 @@ export const reportFrequencyEnum = pgEnum("report_frequency", [
   "monthly",
 ]);
 
+export const resultPublicationStatusEnum = pgEnum("result_publication_status", [
+  "selected",
+  "rejected",
+]);
+
+export const odRaiseStatusEnum = pgEnum("od_raise_status", [
+  "awaiting_po_raise",
+  "od_raised",
+  "cancelled",
+]);
+
 /* ── Users ── */
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -127,13 +142,13 @@ export const studentProfiles = pgTable("student_profiles", {
   registerNo: varchar("register_no", { length: 20 }).notNull().unique(),
   school: varchar("school", { length: 100 }),
   program: varchar("program", { length: 100 }),
-  department: varchar("department", { length: 50 }).notNull(),
+  department: varchar("department", { length: 200 }).notNull(),
   year: integer("year").notNull(),
   batchStartYear: integer("batch_start_year"),
   batchEndYear: integer("batch_end_year"),
   course: varchar("course", { length: 100 }),
-  programType: varchar("program_type", { length: 10 }),
-  section: varchar("section", { length: 5 }),
+  programType: varchar("program_type", { length: 20 }),
+  section: varchar("section", { length: 20 }),
   cgpa: decimal("cgpa", { precision: 3, scale: 2 }),
   dob: date("dob"),
   professionalSummary: text("professional_summary"),
@@ -284,6 +299,8 @@ export const internshipRequests = pgTable("internship_requests", {
   offerLetterUrl: text("offer_letter_url"),
   status: requestStatusEnum("status").default("draft"),
   currentTier: integer("current_tier").default(0),
+  currentTierEnteredAt: timestamp("current_tier_entered_at", { withTimezone: true }),
+  currentTierSlaHours: integer("current_tier_sla_hours").default(6),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   lastReviewedBy: uuid("last_reviewed_by").references(() => users.id),
@@ -453,6 +470,8 @@ export const jobPostings = pgTable("job_postings", {
     .references(() => users.id)
     .notNull(),
   postedByRole: userRoleEnum("posted_by_role").notNull(),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id),
+  submittedByRole: userRoleEnum("submitted_by_role"),
   title: varchar("title", { length: 255 }).notNull(),
   domain: varchar("domain", { length: 150 }),
   jobType: varchar("job_type", { length: 50 }).notNull(),
@@ -528,6 +547,66 @@ export const jobApplications = pgTable("job_applications", {
   isVerified: boolean("is_verified").default(false),
   appliedAt: timestamp("applied_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const jobApplicationRoundProgress = pgTable("job_application_round_progress", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  applicationId: uuid("application_id")
+    .references(() => jobApplications.id, { onDelete: "cascade" })
+    .notNull(),
+  roundId: uuid("round_id")
+    .references(() => selectionProcessRounds.id, { onDelete: "cascade" })
+    .notNull(),
+  status: varchar("status", { length: 30 }).notNull().default("scheduled"),
+  notes: text("notes"),
+  reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const jobResultPublications = pgTable("job_result_publications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  jobId: uuid("job_id")
+    .references(() => jobPostings.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => jobApplications.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(),
+  companyId: uuid("company_id")
+    .references(() => companyRegistrations.id, { onDelete: "cascade" })
+    .notNull(),
+  studentId: uuid("student_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  resultStatus: resultPublicationStatusEnum("result_status").notNull(),
+  notes: text("notes"),
+  publishedByUserId: uuid("published_by_user_id").references(() => users.id).notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }).defaultNow(),
+});
+
+export const odRaiseRequests = pgTable("od_raise_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  resultPublicationId: uuid("result_publication_id")
+    .references(() => jobResultPublications.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(),
+  studentId: uuid("student_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  jobId: uuid("job_id")
+    .references(() => jobPostings.id, { onDelete: "cascade" })
+    .notNull(),
+  companyId: uuid("company_id")
+    .references(() => companyRegistrations.id, { onDelete: "cascade" })
+    .notNull(),
+  raisedByUserId: uuid("raised_by_user_id").references(() => users.id),
+  internshipRequestId: uuid("internship_request_id").references(() => internshipRequests.id),
+  status: odRaiseStatusEnum("status").default("awaiting_po_raise"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  raisedAt: timestamp("raised_at", { withTimezone: true }),
 });
 
 /* ── Role Promotions ── */
@@ -650,6 +729,11 @@ export const selectionProcessRounds = pgTable("selection_process_rounds", {
   roundName: varchar("round_name", { length: 100 }).notNull(),
   roundType: varchar("round_type", { length: 50 }),
   description: text("description"),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  mode: varchar("mode", { length: 50 }),
+  meetLink: text("meet_link"),
+  location: varchar("location", { length: 255 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -659,9 +743,19 @@ export const approvalEscalations = pgTable("approval_escalations", {
   requestId: uuid("request_id").references(() => internshipRequests.id, { onDelete: "cascade" }).notNull(),
   escalatedFromTier: integer("escalated_from_tier").notNull(),
   escalatedToTier: integer("escalated_to_tier").notNull(),
+  escalationStage: integer("escalation_stage").default(1),
   escalationReason: text("escalation_reason"),
+  lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const approvalSlaSettings = pgTable("approval_sla_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  scope: varchar("scope", { length: 50 }).notNull().unique(),
+  slaHours: integer("sla_hours").notNull().default(6),
+  updatedBy: uuid("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 /* ── Relations ── */

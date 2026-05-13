@@ -8,6 +8,21 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import DeleteCompanyButton from "./DeleteCompanyButton";
 
+function getCompanyBadgeSeed(value: string) {
+  return Array.from(value).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+}
+
+function getCompanyBadgeStyle(value: string) {
+  const palettes = [
+    { background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#ffffff" },
+    { background: "linear-gradient(135deg, #f97316, #ea580c)", color: "#ffffff" },
+    { background: "linear-gradient(135deg, #059669, #047857)", color: "#ffffff" },
+    { background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#ffffff" },
+    { background: "linear-gradient(135deg, #db2777, #be185d)", color: "#ffffff" },
+  ];
+  return palettes[getCompanyBadgeSeed(value) % palettes.length];
+}
+
 export default async function CompaniesPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
   const searchParams = await props.searchParams;
   const queryParam = searchParams.q || "";
@@ -18,12 +33,12 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
   const pageSize = 20;
   const offset = (page - 1) * pageSize;
 
-  const conditions: SQL[] = [eq(users.role, "company")];
+  const conditions: SQL[] = [];
   
   if (queryParam) {
     const search = or(
-      ilike(users.firstName, `%${queryParam}%`),
-      ilike(users.lastName, `%${queryParam}%`),
+      ilike(companyRegistrations.companyLegalName, `%${queryParam}%`),
+      ilike(companyRegistrations.brandName, `%${queryParam}%`),
       ilike(users.email, `%${queryParam}%`)
     );
     if (search) conditions.push(search);
@@ -32,14 +47,29 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
   const whereClause = and(...conditions);
 
   const companies = await db
-    .select()
-    .from(users)
+    .select({
+      id: companyRegistrations.id,
+      status: companyRegistrations.status,
+      companyLegalName: companyRegistrations.companyLegalName,
+      brandName: companyRegistrations.brandName,
+      companyType: companyRegistrations.companyType,
+      createdAt: companyRegistrations.createdAt,
+      ownerUserId: companyRegistrations.userId,
+      email: users.email,
+      phone: users.phone,
+    })
+    .from(companyRegistrations)
+    .leftJoin(users, eq(companyRegistrations.userId, users.id))
     .where(whereClause)
-    .orderBy(users.createdAt)
+    .orderBy(companyRegistrations.createdAt)
     .limit(pageSize)
     .offset(offset);
 
-  const countResult = await db.select({ count: sql`count(*)` }).from(users).where(whereClause);
+  const countResult = await db
+    .select({ count: sql`count(*)` })
+    .from(companyRegistrations)
+    .leftJoin(users, eq(companyRegistrations.userId, users.id))
+    .where(whereClause);
   const totalCount = Number(countResult[0]?.count || 0);
   const totalPages = Math.ceil(totalCount / pageSize);
 
@@ -54,18 +84,26 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
 
     try {
       // Null out any nullable FK references to this user across all tables
-      await db.execute(sql`DELETE FROM job_postings WHERE posted_by = ${companyId} OR company_id = ${companyId}`);
-      await db.execute(sql`UPDATE internship_requests SET last_reviewed_by = NULL WHERE last_reviewed_by = ${companyId}`);
-      await db.execute(sql`UPDATE authority_mappings SET updated_by = NULL WHERE updated_by = ${companyId}`);
-      await db.execute(sql`DELETE FROM company_registrations WHERE user_id = ${companyId}`);
-      await db.execute(sql`DELETE FROM audit_logs WHERE user_id = ${companyId}`);
-      await db.execute(sql`DELETE FROM notifications WHERE user_id = ${companyId}`);
-      await db.execute(sql`DELETE FROM users WHERE id = ${companyId}`);
+      const companyRecord = await db
+        .select({ ownerUserId: companyRegistrations.userId })
+        .from(companyRegistrations)
+        .where(eq(companyRegistrations.id, companyId))
+        .limit(1);
+      const ownerUserId = companyRecord[0]?.ownerUserId;
+
+      await db.execute(sql`DELETE FROM job_postings WHERE company_id = ${companyId}`);
+      if (ownerUserId) {
+        await db.execute(sql`UPDATE internship_requests SET last_reviewed_by = NULL WHERE last_reviewed_by = ${ownerUserId}`);
+        await db.execute(sql`UPDATE authority_mappings SET updated_by = NULL WHERE updated_by = ${ownerUserId}`);
+        await db.execute(sql`DELETE FROM audit_logs WHERE user_id = ${ownerUserId}`);
+        await db.execute(sql`DELETE FROM notifications WHERE user_id = ${ownerUserId}`);
+      }
+      await db.execute(sql`DELETE FROM company_registrations WHERE id = ${companyId}`);
+      if (ownerUserId) {
+        await db.execute(sql`DELETE FROM users WHERE id = ${ownerUserId}`);
+      }
     } catch {
-      // If multi-statement fails, try individual deletes
-      await db.delete(companyRegistrations).where(eq(companyRegistrations.userId, companyId));
-      // Use Drizzle's raw execute for cascading delete
-      await db.execute(sql`DELETE FROM users WHERE id = ${companyId}`);
+      await db.delete(companyRegistrations).where(eq(companyRegistrations.id, companyId));
     }
 
     revalidatePath("/companies");
@@ -107,6 +145,9 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
             </div>
           ) : (
             companies.map((company) => (
+              (() => {
+                const companyStatus = company.status ?? "under_review";
+                return (
               <div key={company.id} style={{ 
                 border: "1px solid var(--border-color)", 
                 borderRadius: "var(--radius-lg)", 
@@ -117,23 +158,30 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
                 position: "relative",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                  <div style={{ 
-                    width: "48px", 
-                    height: "48px", 
-                    borderRadius: "12px", 
-                    backgroundColor: "var(--surface)", 
-                    border: "1px solid var(--border-color)",
+                  <div style={{
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.08)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    flexShrink: 0
+                    flexShrink: 0,
+                    fontWeight: 800,
+                    fontSize: "1rem",
+                    ...getCompanyBadgeStyle(company.companyLegalName || company.brandName || "C"),
                   }}>
-                    <Building size={24} color="var(--primary-color)" />
+                    {(company.brandName || company.companyLegalName || "C").trim().charAt(0).toUpperCase()}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: "1.125rem" }}>{company.firstName} {company.lastName}</div>
+                    <div style={{ fontWeight: 600, fontSize: "1.125rem" }}>{company.companyLegalName}</div>
+                    {company.brandName && (
+                      <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginTop: "2px" }}>
+                        {company.brandName}
+                      </div>
+                    )}
                     <span className="badge" style={{ backgroundColor: "var(--primary-light)", color: "var(--primary-color)", marginTop: "4px" }}>
-                      Authorized Partner
+                      {companyStatus === "approved" ? "Approved Partner" : companyStatus.replace(/_/g, " ")}
                     </span>
                   </div>
 
@@ -141,15 +189,20 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
                   {canManageCompanies && (
                     <DeleteCompanyButton
                       companyId={company.id}
-                      companyName={`${company.firstName} ${company.lastName}`}
+                      companyName={company.companyLegalName}
                       deleteAction={deleteCompany}
                     />
                   )}
                 </div>
                 
-                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
+                  {company.companyType && (
+                    <div style={{ color: "var(--text-secondary)", fontSize: "0.875rem", fontWeight: 500 }}>
+                      {company.companyType}
+                    </div>
+                  )}
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-                    <Mail size={14} /> <a href={`mailto:${company.email}`} style={{ color: "inherit" }}>{company.email}</a>
+                    <Mail size={14} /> <a href={`mailto:${company.email || ""}`} style={{ color: "inherit" }}>{company.email || "No email on file"}</a>
                   </div>
                   {company.phone && (
                     <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
@@ -180,9 +233,11 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ [ke
                   cursor: "pointer",
                   transition: "opacity 0.2s ease",
                 }}>
-                  <Building size={14} /> View Full Profile
+                  <Building size={14} /> View Full Details
                 </Link>
               </div>
+                );
+              })()
             ))
           )}
         </div>
