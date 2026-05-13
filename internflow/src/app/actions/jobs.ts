@@ -123,7 +123,10 @@ export async function createJobPosting(formData: FormData) {
       companyIdToInsert = companyContext?.companyId || null;
     }
 
-    if (!companyIdToInsert) {
+    // Only company/company_staff MUST have a company linked.
+    // Internal college roles (tutor, PC, HOD, dean, etc.) can post with an optional company selection.
+    const companyRequiredRoles = ["company", "company_staff"];
+    if (!companyIdToInsert && companyRequiredRoles.includes(role)) {
       return { error: "A company must be selected before posting a job." };
     }
 
@@ -498,5 +501,23 @@ export async function updateJobPosting(jobId: string, formData: FormData) {
   } catch (error: unknown) {
     console.error("Job update error:", error);
     return { error: `Failed to update job: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export async function fetchApprovedCompanies() {
+  try {
+    const companies = await db
+      .select({
+        id: companyRegistrations.id,
+        name: companyRegistrations.companyLegalName,
+      })
+      .from(companyRegistrations)
+      .where(eq(companyRegistrations.status, "approved"))
+      .orderBy(companyRegistrations.companyLegalName);
+
+    return companies;
+  } catch (err) {
+    console.error("Failed to fetch approved companies:", err);
+    return [];
   }
 }

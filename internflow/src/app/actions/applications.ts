@@ -93,7 +93,9 @@ export async function submitInternshipRequest(formData: FormData) {
       companyWebsite = validateUrl(formData.get("companyWebsite"), "Company Website");
       hrName = sanitize(formData.get("hrName"), "HR Name", 200);
       hrEmail = validateEmail(formData.get("hrEmail"), "HR Email");
-      hrPhone = validatePhone(formData.get("hrPhone"), "HR Phone");
+      // Strip whitespace & formatting from phone before validation/storage to fit varchar(15) column
+      const rawPhone = typeof formData.get("hrPhone") === "string" ? (formData.get("hrPhone") as string).replace(/[\s\-()]/g, "") : formData.get("hrPhone");
+      hrPhone = validatePhone(rawPhone, "HR Phone");
       offerLetterUrl = validateUrl(formData.get("offerLetterUrl"), "Offer Letter URL");
       companyIdProofUrl = validateUrl(formData.get("companyIdProofUrl"), "Company ID Proof URL");
       parentConsentUrl = validateUrl(formData.get("parentConsentUrl"), "Parent Consent URL");
@@ -151,7 +153,8 @@ export async function submitInternshipRequest(formData: FormData) {
       actorId: userId,
       actorRole: role,
     });
-    return { error: "Failed to submit application." };
+    const message = error instanceof Error ? error.message : "Failed to submit application.";
+    return { error: message };
   }
 }
 
