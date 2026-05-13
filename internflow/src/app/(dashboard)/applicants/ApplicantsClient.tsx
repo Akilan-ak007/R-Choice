@@ -501,6 +501,9 @@ export default function ApplicantsClient({
                       >
                         {isPosting ? "Publishing..." : `Post Results (${selectedCountByJob.get(job.id) || 0})`}
                       </button>
+                      <Link href={`/jobs/manage/${job.id}/board`} className="btn btn-accent" style={{ textDecoration: "none" }}>
+                        Kanban Board
+                      </Link>
                       <Link href={`/jobs/manage/${job.id}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
                         Edit Rounds
                       </Link>

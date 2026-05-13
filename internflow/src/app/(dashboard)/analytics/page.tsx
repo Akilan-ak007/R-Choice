@@ -13,6 +13,7 @@ import {
   studentProfiles,
   users,
 } from "@/lib/db/schema";
+import { PlacementFunnelChart } from "@/components/analytics/PlacementFunnelChart";
 
 type SearchParams = Promise<Record<string, string | undefined>>;
 
@@ -205,6 +206,7 @@ export default async function AnalyticsPage(props: { searchParams: SearchParams 
     totalApplicants: number;
     selectedApplicants: number;
   } | null = null;
+  let funnelData: { stage: string; count: number; color: string }[] = [];
   let companyLeaderboard: Array<{
     companyId: string | null;
     companyName: string;
@@ -260,6 +262,23 @@ export default async function AnalyticsPage(props: { searchParams: SearchParams 
     ]);
 
     companyKpis = companyKpisRaw[0] || null;
+
+    // Placement Funnel
+    const funnelResult = await db
+      .select({
+        totalApplied: sql<number>`count(distinct ${jobApplications.studentId})`,
+        totalShortlisted: sql<number>`count(distinct case when ${jobApplications.status} in ('shortlisted', 'round_scheduled', 'selected') then ${jobApplications.studentId} end)`,
+        totalInterviewing: sql<number>`count(distinct case when ${jobApplications.status} in ('round_scheduled', 'selected') then ${jobApplications.studentId} end)`,
+        totalSelected: sql<number>`count(distinct case when ${jobApplications.status} = 'selected' then ${jobApplications.studentId} end)`,
+      })
+      .from(jobApplications);
+    const funnel = funnelResult[0];
+    funnelData = [
+      { stage: "Applied", count: Number(funnel?.totalApplied || 0), color: "#6366f1" },
+      { stage: "Shortlisted", count: Number(funnel?.totalShortlisted || 0), color: "#f59e0b" },
+      { stage: "Interviewing", count: Number(funnel?.totalInterviewing || 0), color: "#3b82f6" },
+      { stage: "Selected", count: Number(funnel?.totalSelected || 0), color: "#22c55e" },
+    ];
     companyLeaderboard = leaderboardRaw.map((item) => ({
       ...item,
       companyName: item.companyName || "Company",
@@ -323,6 +342,12 @@ export default async function AnalyticsPage(props: { searchParams: SearchParams 
         <StatCard title="Placement Reach" value={`${placementRate}%`} caption="Applied students divided by visible students." icon={<BarChart3 size={22} />} accent="#ec4899" />
         {companyKpis && <StatCard title="Job Applicants" value={companyKpis.totalApplicants} caption="All company-side job applications across visible hiring activity." icon={<Briefcase size={22} />} accent="#0ea5e9" />}
       </div>
+
+      {funnelData.length > 0 && (
+        <div style={{ marginBottom: "var(--space-6)" }}>
+          <PlacementFunnelChart data={funnelData} />
+        </div>
+      )}
 
       <div className="grid grid-2" style={{ gap: "var(--space-6)", marginBottom: "var(--space-6)" }}>
         <div className="card" style={{ padding: "var(--space-5)" }}>

@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { CommandPalette } from "@/components/ui/CommandPalette";
+import { DynamicIsland } from "@/components/ui/DynamicIsland";
 
 export default async function DashboardLayout({
   children,
@@ -22,7 +24,11 @@ export default async function DashboardLayout({
       userEmail={user.email || ""}
       userAvatar={user.image}
     >
-      {children}
+      <>
+        <CommandPalette />
+        <DynamicIsland />
+        {children}
+      </>
     </DashboardShell>
   );
 }
