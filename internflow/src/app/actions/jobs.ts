@@ -503,21 +503,3 @@ export async function updateJobPosting(jobId: string, formData: FormData) {
     return { error: `Failed to update job: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
-
-export async function fetchApprovedCompanies() {
-  try {
-    const companies = await db
-      .select({
-        id: companyRegistrations.id,
-        name: companyRegistrations.companyLegalName,
-      })
-      .from(companyRegistrations)
-      .where(eq(companyRegistrations.status, "approved"))
-      .orderBy(companyRegistrations.companyLegalName);
-
-    return companies;
-  } catch (err) {
-    console.error("Failed to fetch approved companies:", err);
-    return [];
-  }
-}

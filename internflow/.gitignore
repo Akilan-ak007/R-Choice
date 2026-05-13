@@ -50,10 +50,16 @@ test-db.ts
 test_resume.js
 build_analysis.txt
 shimmer_readme.txt
-docs/DEPLOYMENT_GUIDE_COLLEGE.md
 
 # one-off seed/utility scripts
 add_*.ts
 check_*.ts
 seed_*.ts
 read_excel.js
+
+# debug / test scripts
+test-*.js
+test-*.mjs
+
+# diagram files (use docs/ for documentation)
+*.drawio
