@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { fetchCompanyJobs } from "@/app/actions/jobs";
+import { fetchCompanyJobs, fetchStaffJobs } from "@/app/actions/jobs";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PlusCircle, Users, Edit, MapPin, Banknote, Clock } from "lucide-react";
@@ -11,12 +11,17 @@ export default async function ManageJobsPage() {
     redirect("/");
   }
 
+  const role = session.user.role;
+  const isCompanyRole = role === "company" || role === "company_staff";
+  
   const companyContext = await getCompanyContextForUser(session.user.id);
-  if (!companyContext) {
+  if (isCompanyRole && !companyContext) {
     redirect("/");
   }
 
-  const jobs = await fetchCompanyJobs(session.user.id);
+  const jobs = isCompanyRole 
+    ? await fetchCompanyJobs(session.user.id) 
+    : await fetchStaffJobs(session.user.id);
 
   return (
     <div className="animate-fade-in">

@@ -36,6 +36,13 @@
       "when": 1777826637645,
       "tag": "0004_widen_student_profile_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778659018453,
+      "tag": "0005_stale_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }

@@ -9,14 +9,17 @@ import { db } from "@/lib/db";
 import {
   companyRegistrations,
   internshipRequests,
+  jobPostings,
   jobResultPublications,
   notifications,
   odRaiseRequests,
+  studentProfiles,
   users,
 } from "@/lib/db/schema";
 import { getMailDeliveryMode } from "@/lib/mail";
 
 import { AdminKpiCards } from "./AdminKpiCards";
+import { DepartmentAnalyticsChart } from "./DepartmentAnalyticsChart";
 
 type QuickAction = {
   href: string;
@@ -55,8 +58,46 @@ export default async function AdminDashboard() {
   const approvedCount = approvedResult?.value ?? 0;
   const placementRate = activeStudents > 0 ? Math.round((approvedCount / activeStudents) * 100) : 0;
 
+  // Department-wise analytics
+  const deptStudents = await db
+    .select({
+      department: studentProfiles.department,
+      total: count(),
+    })
+    .from(studentProfiles)
+    .groupBy(studentProfiles.department);
+
+  const deptApproved = await db
+    .select({
+      department: studentProfiles.department,
+      approved: count(),
+    })
+    .from(internshipRequests)
+    .innerJoin(studentProfiles, sql`${internshipRequests.studentId} = ${studentProfiles.userId}`)
+    .where(eq(internshipRequests.status, "approved"))
+    .groupBy(studentProfiles.department);
+
+  const approvedMap = new Map(deptApproved.map(d => [d.department, d.approved]));
+  const departmentStats = deptStudents.map(d => ({
+    department: d.department,
+    totalStudents: d.total,
+    approvedInternships: approvedMap.get(d.department) || 0,
+    placementRate: d.total > 0 ? Math.round(((approvedMap.get(d.department) || 0) / d.total) * 100) : 0,
+  })).sort((a, b) => b.approvedInternships - a.approvedInternships);
+
   const [pendingCompaniesResult] = await db.select({ value: count() }).from(companyRegistrations).where(eq(companyRegistrations.status, "pending"));
   const pendingCompanies = pendingCompaniesResult?.value ?? 0;
+
+  const [pendingJobsResult] = await db
+    .select({ value: count() })
+    .from(jobPostings)
+    .where(
+      inArray(
+        jobPostings.status, 
+        userRole === "placement_officer" ? ["pending_review"] : ["pending_mcr_approval"]
+      )
+    );
+  const pendingJobs = pendingJobsResult?.value ?? 0;
 
   const [pendingRaiseResult] = await db
     .select({ value: count() })
@@ -83,6 +124,9 @@ export default async function AdminDashboard() {
       : null,
     ["placement_officer", "management_corporation", "mcr", "placement_head"].includes(userRole)
       ? { href: "/companies/review", title: "Review Companies", description: "Approve pending company registrations.", badge: pendingCompanies }
+      : null,
+    ["placement_officer", "management_corporation", "mcr", "placement_head"].includes(userRole)
+      ? { href: "/approvals/jobs", title: "Review Job Postings", description: "Approve new internships and jobs posted by faculties or companies.", badge: pendingJobs }
       : null,
     ["placement_officer", "management_corporation", "mcr", "placement_head"].includes(userRole)
       ? { href: "/settings", title: "OD SLA Settings", description: "Review timing rules and overdue approvals.", badge: slaBreaches }
@@ -223,6 +267,14 @@ export default async function AdminDashboard() {
             <Link href="/reports/admin" className="btn btn-outline" style={{ display: "inline-flex", gap: "8px", marginTop: "var(--space-4)" }}>
               View Detailed Reports
             </Link>
+          </div>
+
+          <div className="card-glass" style={{ padding: "var(--space-5)", borderRadius: "var(--border-radius-xl)" }}>
+            <h2 style={{ marginTop: 0, marginBottom: "var(--space-2)" }}>Department Analytics</h2>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginBottom: "var(--space-4)" }}>
+              Placement progress broken down by department.
+            </p>
+            <DepartmentAnalyticsChart data={departmentStats} />
           </div>
 
           {!["placement_officer", "management_corporation", "mcr"].includes(userRole) && (

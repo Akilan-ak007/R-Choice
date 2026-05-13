@@ -94,6 +94,12 @@ async function baselineExistingDatabase(files) {
   }
 
   const baselineFiles = files.filter((fileName) => {
+    // Only baseline files up to 0004
+    const prefix = parseInt(fileName.substring(0, 4), 10);
+    if (!isNaN(prefix) && prefix >= 5) {
+      return false;
+    }
+    
     if (hasLaunchWorkflowTables) {
       return true;
     }

@@ -5,6 +5,7 @@ import { eq, asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { MapPin, Clock, Banknote, Building2, ArrowLeft, Video } from "lucide-react";
+import { AddToCalendarButton } from "@/components/ui/AddToCalendarButton";
 
 export default async function JobDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -155,11 +156,23 @@ export default async function JobDetailPage(props: { params: Promise<{ id: strin
                     </div>
                     {round.description && <p style={{ margin: "6px 0 0 0", fontSize: "0.8rem", color: "var(--text-secondary)" }}>{round.description}</p>}
                   </div>
-                  {round.meetLink && (
-                    <a href={round.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.8rem", padding: "6px 12px", display: "inline-flex", gap: "4px" }}>
-                      <Video size={14} /> Join
-                    </a>
-                  )}
+                  <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                    {round.startsAt && (
+                      <AddToCalendarButton
+                        title={`${job.title} - ${round.roundName}`}
+                        description={round.description || undefined}
+                        startsAt={round.startsAt.toISOString()}
+                        endsAt={round.endsAt?.toISOString()}
+                        location={round.location || undefined}
+                        meetLink={round.meetLink || undefined}
+                      />
+                    )}
+                    {round.meetLink && (
+                      <a href={round.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.8rem", padding: "6px 12px", display: "inline-flex", gap: "4px" }}>
+                        <Video size={14} /> Join
+                      </a>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

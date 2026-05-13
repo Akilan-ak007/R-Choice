@@ -10,7 +10,7 @@ import {
   companyRegistrations,
   selectionProcessRounds,
 } from "@/lib/db/schema";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, inArray, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sanitize, sanitizeOptional, validateDate, ValidationError } from "@/lib/validation";
 import { sendPushToMultiple } from "@/lib/firebase";
@@ -212,7 +212,7 @@ export async function createJobPosting(formData: FormData) {
   }
 }
 
-export async function updateJobStatus(jobId: string, action: "approve" | "reject") {
+export async function updateJobStatus(jobId: string, action: "approve" | "reject", rejectionReason?: string) {
   const session = await auth();
   if (!session?.user?.id) {
     return { error: "Not authenticated" };
@@ -254,6 +254,7 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
     await db.update(jobPostings)
       .set({ 
         status: newStatus,
+        rejectionReason: action === "reject" ? (rejectionReason || null) : null,
         verifiedBy: session.user.id,
         verifiedByRole: role,
         verifiedAt: new Date()
@@ -315,8 +316,42 @@ export async function updateJobStatus(jobId: string, action: "approve" | "reject
   }
 }
 
+export async function updateBulkJobStatus(jobIds: string[], action: "approve" | "reject", rejectionReason?: string) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "Not authenticated" };
+  }
+  
+  const role = session.user.role;
+  if (!["placement_officer", "management_corporation", "mcr"].includes(role)) {
+    return { error: "You do not have permission to perform bulk approvals." };
+  }
+
+  try {
+    for (const jobId of jobIds) {
+      await updateJobStatus(jobId, action, rejectionReason);
+    }
+    revalidatePath("/approvals/jobs");
+    revalidatePath("/jobs");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to bulk update job statuses:", error);
+    return { error: "Database error occurred during bulk operation" };
+  }
+}
+
 export async function fetchActiveJobs() {
   try {
+    // Lazy evaluation: Auto-archive jobs whose deadline has passed
+    await db.update(jobPostings)
+      .set({ status: "closed" })
+      .where(
+        and(
+          eq(jobPostings.status, "approved"),
+          sql`${jobPostings.applicationDeadline} < CURRENT_DATE`
+        )
+      );
+
     const jobs = await db
       .select({
         id: jobPostings.id,
@@ -378,6 +413,21 @@ export async function fetchCompanyJobs(companyId: string) {
     return jobs;
   } catch (err) {
     console.error("Failed to fetch company jobs:", err);
+    return [];
+  }
+}
+
+export async function fetchStaffJobs(userId: string) {
+  try {
+    const jobs = await db
+      .select()
+      .from(jobPostings)
+      .where(eq(jobPostings.postedBy, userId))
+      .orderBy(desc(jobPostings.createdAt));
+      
+    return jobs;
+  } catch (err) {
+    console.error("Failed to fetch staff jobs:", err);
     return [];
   }
 }
