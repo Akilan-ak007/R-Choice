@@ -9,7 +9,7 @@ const publicRoutes = ["/", "/register/company", "/company/register", "/api/auth"
 const sharedRoutes = ["/settings", "/profile", "/export", "/calendar"];
 
 const roleRoutes: Record<string, string[]> = {
-  student: ["/dashboard/student", "/jobs", "/applications", "/reports"],
+  student: ["/dashboard/student", "/jobs", "/applications", "/reports", "/companies"],
   tutor: ["/dashboard/staff", "/students", "/approvals", "/jobs", "/reports", "/users"],
   placement_coordinator: ["/dashboard/staff", "/students", "/approvals", "/jobs", "/reports", "/users"],
   hod: ["/dashboard/staff", "/students", "/approvals", "/jobs", "/reports", "/users"],
