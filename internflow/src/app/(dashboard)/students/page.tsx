@@ -24,6 +24,9 @@ export default async function StudentsPage(props: { searchParams: Promise<{ [key
   if (userRole === "tutor") {
     redirect("/users?role=student");
   }
+  if (userRole === "company" || userRole === "company_staff") {
+    redirect("/applicants");
+  }
 
   const hideSchoolDepartmentFilters = ["placement_coordinator", "hod"].includes(userRole || "");
   const scopeMappings = userId && userRole
